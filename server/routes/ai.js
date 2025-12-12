@@ -227,7 +227,7 @@ Return only a JSON array of the most relevant file names.`
 
     const result = JSON.parse(completion.choices[0].message.content)
     const relevantFiles = files.filter(f => 
-      result.relevant_files?.some((name: string) => f.name.includes(name))
+      result.relevant_files?.some((name) => f.name.includes(name))
     )
 
     res.json({ files: relevantFiles })

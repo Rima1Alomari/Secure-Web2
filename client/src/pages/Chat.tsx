@@ -78,12 +78,12 @@ const Chat = () => {
     <div className="p-6 md:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
-              Chat
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-              Communicate with your team in real-time
-            </p>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
+            Chat
+          </h1>
+          <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
+            Communicate with your team in real-time
+          </p>
         </div>
 
         <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl border-2 border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/10 flex flex-col" style={{ height: 'calc(100vh - 250px)' }}>
@@ -130,7 +130,7 @@ const Chat = () => {
                   <button
                     key={index}
                     onClick={() => handleSuggestionClick(suggestion)}
-                    className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 hover:from-blue-100 hover:to-green-100 dark:hover:from-blue-900/30 dark:hover:to-green-900/30 border border-blue-200/50 dark:border-blue-800/50 rounded-lg text-xs text-gray-700 dark:text-gray-300 font-medium transition-all hover:scale-105"
+                    className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50 rounded-lg text-xs text-gray-700 dark:text-gray-300 font-medium transition-colors duration-200"
                   >
                     {suggestion}
                   </button>
@@ -144,13 +144,13 @@ const Chat = () => {
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 placeholder="Type a message..."
-                className="flex-1 px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                className="flex-1 px-5 py-3.5 bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm shadow-sm"
               />
               <button
                 onClick={handleSendMessage}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2 text-sm"
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm shadow-md"
               >
-                <FaPaperPlane className="text-xs" /> Send
+                <FaPaperPlane /> Send
               </button>
             </div>
           </div>

@@ -77,18 +77,18 @@ const Calendar = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
               Calendar
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+            <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
               Manage events and meetings
             </p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg text-sm font-semibold transition-colors duration-200 flex items-center gap-2 shadow-md"
           >
-            <FaPlus className="text-xs" /> Add Event
+            <FaPlus className="text-sm" /> Add Event
           </button>
         </div>
 
@@ -109,7 +109,7 @@ const Calendar = () => {
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Tomorrow 10:00 AM - 95% availability</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">Friday 2:00 PM - 90% availability</p>
               </div>
-              <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
+              <button className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
                 Find Best Time
               </button>
             </div>
@@ -130,7 +130,7 @@ const Calendar = () => {
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">High probability of schedule conflict next week</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">3 meetings may overlap</p>
               </div>
-              <button className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
+              <button className="w-full px-4 py-2.5 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
                 View Predictions
               </button>
             </div>

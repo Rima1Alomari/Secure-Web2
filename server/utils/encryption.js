@@ -57,4 +57,3 @@ export const generateSecureToken = async (length = 32) => {
   return sodium.to_base64(sodium.randombytes_buf(length))
 }
 
-

@@ -77,4 +77,3 @@ router.get('/siem', authenticate, securityRateLimit, async (req, res) => {
 
 export default router
 
-

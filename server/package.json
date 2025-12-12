@@ -11,6 +11,7 @@
   "dependencies": {
     "agora-access-token": "^2.0.4",
     "aws-sdk": "^2.1509.0",
+    "axios": "^1.6.2",
     "bcrypt": "^5.1.1",
     "compromise": "^14.12.0",
     "cors": "^2.8.5",

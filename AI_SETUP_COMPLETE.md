@@ -75,4 +75,3 @@ All endpoints are available at `/api/ai/*`:
 
 To enable authentication later, uncomment the `authenticate` middleware in `server/routes/ai.js`.
 
-

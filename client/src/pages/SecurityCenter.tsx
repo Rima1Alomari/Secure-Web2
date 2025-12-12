@@ -139,11 +139,11 @@ export default function SecurityCenter() {
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-3">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 flex items-center gap-3 tracking-tight">
             <FiShield className="text-green-600 dark:text-green-400" />
             Security Center
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">Advanced security monitoring and controls</p>
+          <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">Advanced security monitoring and controls</p>
         </div>
 
         {/* AI Security Features */}
@@ -184,9 +184,9 @@ export default function SecurityCenter() {
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Status: Active</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">0 anomalies detected in last 24h</p>
               </div>
-              <button className="w-full px-4 py-2 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg hover:scale-105">
-                View Detection Logs
-              </button>
+               <button className="w-full px-4 py-2.5 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
+                 View Detection Logs
+               </button>
             </div>
           </div>
         </div>
@@ -207,7 +207,7 @@ export default function SecurityCenter() {
             </p>
               <button
                 onClick={toggleQuantumMode}
-                className="mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
+                className="mt-4 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg transition-colors duration-200 text-sm font-semibold shadow-md"
               >
                 {settings?.quantumProofMode ? 'Disable Quantum Mode' : 'Enable Quantum Mode'}
               </button>
@@ -243,17 +243,17 @@ export default function SecurityCenter() {
             <p className="text-gray-700 dark:text-gray-300 text-sm mb-3 font-medium">
               {settings?.mfaEnabled ? 'Enabled' : 'Disabled'}
             </p>
-                  <button
-                    className="mt-4 px-5 py-2.5 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white rounded-lg transition-colors duration-200 text-sm font-medium"
-                  >
-                    {settings?.mfaEnabled ? 'Manage MFA' : 'Enable MFA'}
-                  </button>
+              <button
+                className="mt-4 px-5 py-2.5 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-lg transition-colors duration-200 text-sm font-semibold shadow-md"
+              >
+                {settings?.mfaEnabled ? 'Manage MFA' : 'Enable MFA'}
+              </button>
           </div>
         </div>
 
             {/* Compliance Overview */}
             <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 border-2 border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/10 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Compliance Overview</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-6">Compliance Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(compliance).map(([standard, score]) => (
               <div key={standard} className="bg-gradient-to-br from-blue-50 to-green-50 dark:from-gray-700 dark:to-gray-700 rounded-xl p-5 border-2 border-blue-200/50 dark:border-blue-800/50 shadow-lg">
@@ -292,26 +292,26 @@ export default function SecurityCenter() {
           <button
             onClick={scanRoom}
             disabled={scanning}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm disabled:opacity-50"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
           >
             <FiVideo className="text-base" />
             {scanning ? 'Scanning...' : 'Scan Current Room'}
           </button>
           <button
-            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
           >
             <FiFile className="text-base" />
             Scan Selected Files
           </button>
           <button
-            className="bg-gray-600 hover:bg-gray-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
           >
             <FiRefreshCw className="text-base" />
             Run Full System Scan
           </button>
           <button
             onClick={() => exportAuditLogs('csv')}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
           >
             <FiDownload className="text-base" />
             Export Audit Logs
@@ -320,7 +320,7 @@ export default function SecurityCenter() {
 
         {/* Recent Alerts */}
         <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl p-6 border-2 border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/10">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Recent Security Alerts</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-6">Recent Security Alerts</h2>
           {alerts.length === 0 ? (
             <p className="text-gray-600 dark:text-gray-400 font-medium">No recent alerts. System is secure.</p>
           ) : (

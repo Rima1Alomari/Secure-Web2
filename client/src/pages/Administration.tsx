@@ -22,12 +22,12 @@ const Administration = () => {
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
-              Administration
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-              Manage system and settings
-            </p>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
+            Administration
+          </h1>
+          <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
+            Manage system and settings
+          </p>
         </div>
 
         {/* AI Features Section */}
@@ -106,9 +106,9 @@ const Administration = () => {
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                     User Management
                   </h2>
-                         <button className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
-                           Add User
-                         </button>
+                  <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg text-sm font-semibold transition-colors duration-200 shadow-md">
+                    Add User
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

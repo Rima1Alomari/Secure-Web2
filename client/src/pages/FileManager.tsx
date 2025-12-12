@@ -255,7 +255,7 @@ const FileManager = () => {
               <h3 className="text-lg font-bold text-gray-900 dark:text-white">AI Transcription</h3>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Auto-transcribe audio/video files</p>
-            <button className="w-full px-4 py-2 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg hover:scale-105">
+            <button className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
               Enable Transcription
             </button>
           </div>
@@ -383,7 +383,7 @@ const FileManager = () => {
                     navigator.clipboard.writeText(shareModal.shareLink)
                     alert('Link copied!')
                   }}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 via-green-500 to-green-600 hover:from-green-700 hover:via-green-600 hover:to-green-700 dark:from-green-500 dark:via-green-400 dark:to-green-500 text-white rounded-xl font-bold transition-all shadow-xl shadow-green-500/30 hover:shadow-2xl hover:scale-105 transform"
+                  className="px-6 py-3 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-lg font-semibold transition-colors duration-200 shadow-md"
                 >
                   Copy
                 </button>
@@ -391,7 +391,7 @@ const FileManager = () => {
             </div>
             <button
               onClick={() => setShareModal({ file: null, shareLink: '' })}
-              className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-green-600 hover:from-blue-700 hover:via-blue-600 hover:to-green-700 dark:from-blue-500 dark:via-blue-400 dark:to-green-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-xl shadow-blue-500/30 hover:shadow-2xl hover:scale-105 transform"
+              className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 shadow-md"
             >
               Close
             </button>

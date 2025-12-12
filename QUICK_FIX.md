@@ -60,4 +60,3 @@ curl -X POST http://localhost:5000/api/ai/chat \
   -d '{"message":"Hello"}'
 ```
 
-

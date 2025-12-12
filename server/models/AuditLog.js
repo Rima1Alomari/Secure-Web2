@@ -56,4 +56,3 @@ auditLogSchema.index({ eventType: 1, timestamp: -1 })
 
 export default mongoose.model('AuditLog', auditLogSchema)
 
-

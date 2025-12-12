@@ -73,19 +73,19 @@ const TrashBin = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
               Trash Bin
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+            <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
               Manage deleted files
             </p>
           </div>
           {trashItems.length > 0 && (
             <button
               onClick={handleEmptyTrash}
-              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+              className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 dark:from-red-500 dark:to-red-600 text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2 shadow-xl shadow-red-500/30 hover:shadow-2xl hover:scale-105 transform"
             >
-              <FaTrash className="text-xs" /> Empty Trash
+              <FaTrash className="text-sm" /> Empty Trash
             </button>
           )}
         </div>

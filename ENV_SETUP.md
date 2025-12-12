@@ -55,4 +55,3 @@ ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
 Replace `your-openai-api-key-here` with your actual OpenAI API key from https://platform.openai.com/api-keys
 
-

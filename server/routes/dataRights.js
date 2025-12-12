@@ -116,4 +116,3 @@ router.post('/delete', authenticate, deviceFingerprint, async (req, res) => {
 
 export default router
 
-

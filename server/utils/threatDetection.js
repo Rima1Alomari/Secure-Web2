@@ -146,4 +146,3 @@ export const detectBehavioralAnomaly = (userId, action, context) => {
   return anomalies
 }
 
-

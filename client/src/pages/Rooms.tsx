@@ -66,18 +66,18 @@ const Rooms = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
               Rooms
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+            <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
               Join rooms or create a new room
             </p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg text-sm font-semibold transition-colors duration-200 flex items-center gap-2 shadow-md"
           >
-            <FaPlus className="text-xs" /> Create Room
+            <FaPlus className="text-sm" /> Create Room
           </button>
         </div>
 
@@ -112,7 +112,7 @@ const Rooms = () => {
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Real-time transcription of meetings</p>
             <div className="flex items-center gap-2">
-              <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
+              <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
                 Start Recording
               </button>
               <span className="text-xs text-gray-600 dark:text-gray-400">Live</span>
@@ -160,12 +160,12 @@ const Rooms = () => {
                   <span>{room.members}/{room.maxMembers}</span>
                 </div>
               </div>
-                     <button
-                       onClick={() => handleJoinRoom(room.id)}
-                       className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
-                     >
-                       <FaSignInAlt className="text-xs" /> Join
-                     </button>
+              <button
+                onClick={() => handleJoinRoom(room.id)}
+                className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm shadow-md"
+              >
+                <FaSignInAlt /> Join
+              </button>
             </div>
           ))}
         </div>

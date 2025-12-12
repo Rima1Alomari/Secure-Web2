@@ -74,10 +74,10 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-3 ${
+                className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-3 ${
                   active
                     ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white shadow-md'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-blue-600 dark:hover:text-blue-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                 }`}
               >
                 <Icon className="text-base" />
@@ -92,7 +92,7 @@ export default function Layout({ children }: LayoutProps) {
           <ThemeToggle />
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+            className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
           >
             <FaSignOutAlt className="text-sm" />
             <span>Logout</span>
@@ -142,9 +142,9 @@ export default function Layout({ children }: LayoutProps) {
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap ${
                       active
-                        ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                        ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white shadow-md'
                         : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                     }`}
                   >

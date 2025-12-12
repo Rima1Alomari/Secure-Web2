@@ -37,4 +37,3 @@ const securitySettingsSchema = new mongoose.Schema({
 
 export default mongoose.model('SecuritySettings', securitySettingsSchema)
 
-

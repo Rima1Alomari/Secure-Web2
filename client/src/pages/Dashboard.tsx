@@ -27,10 +27,10 @@ const Dashboard = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-2xl mb-6 shadow-2xl shadow-blue-500/30 ring-4 ring-blue-500/10">
             <FaShieldAlt className="text-white text-3xl" />
           </div>
-          <h2 className="text-4xl md:text-5xl font-semibold mb-4 text-gray-900 dark:text-white tracking-tight">
+          <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
             Welcome to Secure Web
           </h2>
-          <p className="text-base md:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed font-medium">
             Advanced secure collaboration platform with quantum-resistant encryption, AI threat detection, and zero-trust architecture
           </p>
         </div>
@@ -42,7 +42,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400 rounded-2xl mb-6 transition-transform duration-300 group-hover:scale-110 shadow-lg shadow-blue-500/30 ring-4 ring-blue-500/10">
               <FaVideo className="text-white text-3xl" />
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">Video Conferencing</h3>
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 dark:from-blue-400 dark:to-blue-300 bg-clip-text text-transparent mb-4">Video Conferencing</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed text-sm">
               Join or create high-quality video meetings with real-time audio, video, and screen sharing capabilities. Perfect for team collaboration and remote work.
             </p>
@@ -57,9 +57,9 @@ const Dashboard = () => {
               />
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+                className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm shadow-md"
               >
-                Join Room <FaArrowRight className="text-xs" />
+                Join Room <FaArrowRight />
               </button>
             </form>
           </div>
@@ -69,15 +69,15 @@ const Dashboard = () => {
             <div className="flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-600 via-green-500 to-green-400 rounded-2xl mb-6 transition-transform duration-300 group-hover:scale-110 shadow-lg shadow-green-500/30 ring-4 ring-green-500/10">
               <FaFile className="text-white text-3xl" />
             </div>
-            <h3 className="text-2xl font-semibold text-gray-900 dark:text-white mb-3">File Manager</h3>
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-500 dark:from-green-400 dark:to-green-300 bg-clip-text text-transparent mb-4">File Manager</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6 leading-relaxed text-sm">
               Upload, manage, and share your files securely. Collaborate on documents with real-time editing. All files are encrypted and stored safely in the cloud.
             </p>
             <button
               onClick={handleOpenFiles}
-              className="w-full bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white font-medium py-2.5 px-5 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+              className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 dark:from-green-500 dark:to-blue-500 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm shadow-md"
             >
-              Open Files <FaArrowRight className="text-xs" />
+              Open Files <FaArrowRight />
             </button>
           </div>
         </div>
@@ -88,7 +88,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-400 rounded-xl mb-4 shadow-lg shadow-blue-500/30">
               <FaVideo className="text-white text-2xl" />
             </div>
-            <h4 className="text-gray-900 dark:text-white font-semibold text-base mb-2">Real-time Video</h4>
+            <h4 className="text-gray-900 dark:text-white font-bold text-lg mb-2">Real-time Video</h4>
             <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">HD video quality with ultra-low latency</p>
           </div>
 
@@ -96,7 +96,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 to-green-400 rounded-xl mb-4 shadow-lg shadow-green-500/30">
               <FaCloud className="text-white text-2xl" />
             </div>
-            <h4 className="text-gray-900 dark:text-white font-semibold text-base mb-2">Secure Storage</h4>
+            <h4 className="text-gray-900 dark:text-white font-bold text-lg mb-2">Secure Storage</h4>
             <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Cloud-based encrypted file storage</p>
           </div>
 
@@ -104,7 +104,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-green-500 rounded-xl mb-4 shadow-lg shadow-blue-500/30">
               <FaUsers className="text-white text-2xl" />
             </div>
-            <h4 className="text-gray-900 dark:text-white font-semibold text-base mb-2">Collaboration</h4>
+            <h4 className="text-gray-900 dark:text-white font-bold text-lg mb-2">Collaboration</h4>
             <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">Work together in real-time seamlessly</p>
           </div>
         </div>
@@ -124,7 +124,7 @@ const Dashboard = () => {
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">Last Meeting: Project Review</p>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Key points: 5 action items, 3 decisions made</p>
               </div>
-              <button className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors duration-200">
+              <button className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 shadow-md">
                 View Full Summary
               </button>
             </div>

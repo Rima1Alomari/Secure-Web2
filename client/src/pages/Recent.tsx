@@ -101,12 +101,12 @@ const Recent = () => {
     <div className="p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 dark:text-white mb-2">
-              Recent
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
-              View your recent activities
-            </p>
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
+            Recent
+          </h1>
+          <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
+            View your recent activities
+          </p>
         </div>
 
         {/* AI Features Section */}

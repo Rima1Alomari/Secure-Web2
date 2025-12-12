@@ -103,4 +103,3 @@
 3. Check browser console (F12) for network errors
 4. Verify OpenAI API key is valid by testing it directly with OpenAI
 
-

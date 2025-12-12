@@ -25,4 +25,3 @@ const dataRightsRequestSchema = new mongoose.Schema({
 
 export default mongoose.model('DataRightsRequest', dataRightsRequestSchema)
 
-

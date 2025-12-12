@@ -1,5 +1,6 @@
 import express from 'express'
-import { RtcTokenBuilder, RtcRole } from 'agora-access-token'
+import pkg from 'agora-access-token'
+const { RtcTokenBuilder, RtcRole } = pkg
 
 const router = express.Router()
 

@@ -10,7 +10,7 @@ const FloatingAIAssistant = () => {
       {/* Floating Robot Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-16 h-16 bg-gradient-to-br from-blue-600 via-blue-500 to-green-600 hover:from-blue-700 hover:via-blue-600 hover:to-green-700 rounded-full shadow-2xl shadow-blue-500/40 hover:shadow-3xl transition-all duration-300 flex items-center justify-center group hover:scale-110 transform ${
+        className={`fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-br from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 rounded-full shadow-lg transition-colors duration-200 flex items-center justify-center ${
           isOpen ? 'rotate-180' : ''
         }`}
         aria-label="AI Assistant"
@@ -18,7 +18,7 @@ const FloatingAIAssistant = () => {
         {isOpen ? (
           <FaTimes className="text-white text-2xl transition-transform duration-300" />
         ) : (
-          <FaRobot className="text-white text-2xl group-hover:scale-110 transition-transform duration-300" />
+          <FaRobot className="text-white text-xl" />
         )}
         {!isOpen && (
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
@@ -36,15 +36,15 @@ const FloatingAIAssistant = () => {
           
           {/* Chatbot Window */}
           <div className="fixed bottom-24 right-6 z-50 w-96 h-[600px] animate-slide-up">
-            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-2xl border-2 border-blue-200/50 dark:border-blue-800/50 shadow-2xl shadow-blue-500/30 h-full flex flex-col">
-              <div className="p-4 border-b border-blue-200/50 dark:border-blue-800/50 flex items-center justify-between">
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl h-full flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-green-600 rounded-xl flex items-center justify-center">
-                    <FaRobot className="text-white text-lg" />
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
+                    <FaRobot className="text-white text-base" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 dark:text-white">AI Assistant</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Always here to help</p>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm">AI Assistant</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Always here to help</p>
                   </div>
                 </div>
                 <button

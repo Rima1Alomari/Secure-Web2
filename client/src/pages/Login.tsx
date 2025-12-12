@@ -48,7 +48,7 @@ const Login = ({ onLogin }: LoginProps) => {
           <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-600 via-blue-500 to-green-600 rounded-2xl mb-6 shadow-2xl shadow-blue-500/30 ring-4 ring-blue-500/10">
             <FaShieldAlt className="text-white text-4xl" />
           </div>
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-blue-500 to-green-600 dark:from-blue-400 dark:via-blue-300 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
             Secure Web
           </h1>
           <p className="text-gray-700 dark:text-gray-300 text-lg font-medium">Sign in to your account</p>
@@ -106,7 +106,7 @@ const Login = ({ onLogin }: LoginProps) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-blue-500/50 flex items-center justify-center gap-2 transform hover:scale-[1.02]"
+              className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
