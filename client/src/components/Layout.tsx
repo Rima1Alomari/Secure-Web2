@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
   FaVideo, 
@@ -12,11 +12,17 @@ import {
   FaClock,
   FaTrash,
   FaCog,
-  FaUsers
+  FaUsers,
+  FaChevronLeft,
+  FaChevronRight,
+  FaMoon,
+  FaSun
 } from 'react-icons/fa'
 import { removeToken } from '../utils/auth'
 import ThemeToggle from './ThemeToggle'
 import FloatingAIAssistant from './FloatingAIAssistant'
+import GlobalSearch from './GlobalSearch'
+import NotificationsCenter from './NotificationsCenter'
 
 interface LayoutProps {
   children: ReactNode
@@ -25,6 +31,10 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isDark, setIsDark] = useState(() => {
+    return document.documentElement.classList.contains('dark')
+  })
 
   const handleLogout = () => {
     // Temporarily disabled - just navigate to dashboard
@@ -52,16 +62,38 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-green-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 transition-colors flex">
       {/* Left Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-r border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/5 sticky top-0 h-screen">
-        {/* Logo */}
+      <aside className={`hidden lg:flex flex-col bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-r border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/5 sticky top-0 h-screen transition-all duration-300 ${
+        isSidebarCollapsed ? 'w-20' : 'w-64'
+      }`}>
+        {/* Logo & Collapse Toggle */}
         <div className="p-6 border-b border-blue-200/50 dark:border-blue-800/50">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
-              <FaShieldAlt className="text-white text-xl" />
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
-              Secure Web
-            </h1>
+          <div className="flex items-center gap-3 justify-between">
+            {!isSidebarCollapsed && (
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
+                  <FaShieldAlt className="text-white text-xl" />
+                </div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
+                  Secure Web
+                </h1>
+              </div>
+            )}
+            {isSidebarCollapsed && (
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20 mx-auto">
+                <FaShieldAlt className="text-white text-xl" />
+              </div>
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all duration-200 hover:text-gray-900 dark:hover:text-white"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isSidebarCollapsed ? (
+                <FaChevronRight className="text-sm" />
+              ) : (
+                <FaChevronLeft className="text-sm" />
+              )}
+            </button>
           </div>
         </div>
 
@@ -74,14 +106,21 @@ export default function Layout({ children }: LayoutProps) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-3 ${
+                className={`group relative w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
                   active
                     ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white shadow-md'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                }`}
+                } ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                title={isSidebarCollapsed ? item.label : ''}
               >
-                <Icon className="text-base" />
-                <span>{item.label}</span>
+                {/* Left Indicator Bar for Active State */}
+                {active && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white dark:bg-white rounded-r-full shadow-lg transition-all duration-300" />
+                )}
+                <Icon className={`text-base flex-shrink-0 transition-transform duration-300 ${isSidebarCollapsed ? 'mx-auto' : ''} ${!active ? 'group-hover:scale-110' : ''}`} />
+                {!isSidebarCollapsed && (
+                  <span className="transition-opacity duration-300 whitespace-nowrap">{item.label}</span>
+                )}
               </button>
             )
           })}
@@ -89,13 +128,40 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Bottom Actions */}
         <div className="p-4 border-t border-blue-200/50 dark:border-blue-800/50 space-y-2">
-          <ThemeToggle />
+          {isSidebarCollapsed ? (
+            <button
+              onClick={() => {
+                const newIsDark = !isDark
+                setIsDark(newIsDark)
+                if (newIsDark) {
+                  document.documentElement.classList.add('dark')
+                  localStorage.setItem('theme', 'dark')
+                } else {
+                  document.documentElement.classList.remove('dark')
+                  localStorage.setItem('theme', 'light')
+                }
+              }}
+              className="w-full px-2 py-2.5 rounded-lg bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 hover:from-blue-100 hover:to-green-100 dark:hover:from-blue-900/30 dark:hover:to-green-900/30 transition-all duration-300 flex items-center justify-center text-gray-700 dark:text-gray-300"
+              title="Toggle theme"
+            >
+              {isDark ? (
+                <FaSun className="text-yellow-500 text-lg" />
+              ) : (
+                <FaMoon className="text-blue-600 dark:text-blue-400 text-lg" />
+              )}
+            </button>
+          ) : (
+            <ThemeToggle />
+          )}
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+            className={`w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+              isSidebarCollapsed ? 'px-2' : ''
+            }`}
+            title={isSidebarCollapsed ? 'Logout' : ''}
           >
-            <FaSignOutAlt className="text-sm" />
-            <span>Logout</span>
+            <FaSignOutAlt className="text-sm flex-shrink-0" />
+            {!isSidebarCollapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
@@ -104,32 +170,51 @@ export default function Layout({ children }: LayoutProps) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navigation Bar (Mobile & Desktop Header) */}
         <nav className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-b border-blue-200/50 dark:border-blue-800/50 sticky top-0 z-50 shadow-lg shadow-blue-500/5">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16 items-center">
-              {/* Mobile Logo */}
-              <div className="flex lg:hidden items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
-                  <FaShieldAlt className="text-white text-lg" />
+          <div className="px-2 sm:px-4 lg:px-8">
+            {/* Mobile Layout */}
+            <div className="lg:hidden space-y-2 py-2">
+              <div className="flex justify-between items-center gap-2">
+                {/* Mobile Logo */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="w-9 h-9 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
+                    <FaShieldAlt className="text-white text-base" />
+                  </div>
+                  <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
+                    Secure Web
+                  </h1>
                 </div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
-                  Secure Web
-                </h1>
+
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <NotificationsCenter />
+                  <button
+                    onClick={handleLogout}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+                  >
+                    <FaSignOutAlt className="text-xs" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Global Search - Mobile */}
+              <div className="w-full">
+                <GlobalSearch />
+              </div>
+            </div>
+
+            {/* Desktop Layout */}
+            <div className="hidden lg:flex justify-between items-center gap-4 h-16">
+              {/* Desktop Header (Empty space for logo) */}
+              <div className="flex-shrink-0"></div>
+
+              {/* Global Search - Center */}
+              <div className="flex-1 max-w-2xl">
+                <GlobalSearch />
               </div>
 
-              {/* Desktop Header (Empty space for logo) */}
-              <div className="hidden lg:block"></div>
-
               {/* Right Side Actions */}
-              <div className="flex items-center gap-2">
-                <div className="lg:hidden">
-                  <ThemeToggle />
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="lg:hidden px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
-                >
-                  <FaSignOutAlt className="text-sm" />
-                </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <NotificationsCenter />
               </div>
             </div>
 

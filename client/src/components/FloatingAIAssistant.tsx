@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FaRobot, FaTimes } from 'react-icons/fa'
 import AIChatbot from './AIChatbot'
+import { getAssistantContext, getRouteFromPath } from '../ai/assistantContext'
 
 const FloatingAIAssistant = () => {
   const [isOpen, setIsOpen] = useState(false)
+  const location = useLocation()
+  const [context, setContext] = useState(getAssistantContext(getRouteFromPath(location.pathname)))
+
+  // Update context when route changes
+  useEffect(() => {
+    const route = getRouteFromPath(location.pathname)
+    setContext(getAssistantContext(route))
+  }, [location.pathname])
+
 
   return (
     <>
@@ -55,7 +66,12 @@ const FloatingAIAssistant = () => {
                 </button>
               </div>
             <div className="flex-1 overflow-hidden flex flex-col">
-              <AIChatbot placeholder="Ask me anything..." title="" />
+              <AIChatbot 
+                placeholder={context.placeholder} 
+                title="" 
+                suggestions={context.suggestions}
+                systemPrompt={context.systemPrompt}
+              />
             </div>
             </div>
           </div>

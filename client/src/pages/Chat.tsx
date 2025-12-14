@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { FaPaperPlane, FaUser, FaLightbulb } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+import { FaPaperPlane, FaUser, FaLightbulb, FaComments, FaUsers, FaVideo, FaCalendarAlt } from 'react-icons/fa'
 
 interface Message {
   id: string
@@ -10,6 +11,10 @@ interface Message {
 }
 
 const Chat = () => {
+  // Toggle this to show/hide empty state
+  const hasData = false // Set to true to show data, false for empty state
+  const navigate = useNavigate()
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -75,47 +80,96 @@ const Chat = () => {
   }
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="page-content">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-3 tracking-tight">
+        <div className="page-header">
+          <h1 className="page-title">
             Chat
           </h1>
-          <p className="text-gray-700 dark:text-gray-300 text-base md:text-lg font-medium">
+          <p className="page-subtitle">
             Communicate with your team in real-time
           </p>
         </div>
 
-        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-2xl border-2 border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/10 flex flex-col" style={{ height: 'calc(100vh - 250px)' }}>
+        <div className="card flex flex-col" style={{ height: 'calc(100vh - 250px)' }}>
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${msg.isOwn ? 'flex-row-reverse' : ''}`}
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
-                  <FaUser className="text-white" />
+          {hasData && messages.length > 0 ? (
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex gap-3 ${msg.isOwn ? 'flex-row-reverse' : ''}`}
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                    <FaUser className="text-white" />
+                  </div>
+                  <div className={`flex-1 ${msg.isOwn ? 'text-right' : ''}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-gray-900 dark:text-white">{msg.sender}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{formatTime(msg.timestamp)}</span>
+                    </div>
+                    <div
+                      className={`inline-block px-5 py-3 rounded-xl shadow-lg ${
+                        msg.isOwn
+                          ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white'
+                          : 'bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {msg.message}
+                    </div>
+                  </div>
                 </div>
-                <div className={`flex-1 ${msg.isOwn ? 'text-right' : ''}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-900 dark:text-white">{msg.sender}</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatTime(msg.timestamp)}</span>
-                  </div>
-                  <div
-                    className={`inline-block px-5 py-3 rounded-xl shadow-lg ${
-                      msg.isOwn
-                        ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white'
-                        : 'bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 text-gray-900 dark:text-white'
-                    }`}
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-6">
+              <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-blue-100 to-green-100 dark:from-blue-900/30 dark:to-green-900/30 rounded-full mb-6">
+                  <FaComments className="text-blue-600 dark:text-blue-400 text-4xl" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+                  Start a conversation
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-6">
+                  Send a message to begin chatting with your team. Use the input below to start a conversation or explore other ways to connect.
+                </p>
+              </div>
+
+              {/* Suggested Actions */}
+              <div className="w-full max-w-2xl border-t border-gray-200 dark:border-gray-700 pt-8">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 text-center">
+                  Suggested Actions
+                </h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <button
+                    onClick={() => navigate('/rooms')}
+                    className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all text-left group"
                   >
-                    {msg.message}
-                  </div>
+                    <FaVideo className="text-blue-600 dark:text-blue-400 text-xl mb-2 group-hover:scale-110 transition-transform" />
+                    <div className="font-semibold text-gray-900 dark:text-white mb-1">Join a Room</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Start a video meeting</div>
+                  </button>
+                  <button
+                    onClick={() => navigate('/calendar')}
+                    className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all text-left group"
+                  >
+                    <FaCalendarAlt className="text-purple-600 dark:text-purple-400 text-xl mb-2 group-hover:scale-110 transition-transform" />
+                    <div className="font-semibold text-gray-900 dark:text-white mb-1">Schedule Event</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Plan a team event</div>
+                  </button>
+                  <button
+                    onClick={() => navigate('/files')}
+                    className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all text-left group"
+                  >
+                    <FaUsers className="text-green-600 dark:text-green-400 text-xl mb-2 group-hover:scale-110 transition-transform" />
+                    <div className="font-semibold text-gray-900 dark:text-white mb-1">Share Files</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Collaborate on documents</div>
+                  </button>
                 </div>
               </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+            </div>
+          )}
 
           {/* Input Area */}
           <div className="border-t border-gray-200 dark:border-gray-700 p-4">
@@ -148,7 +202,7 @@ const Chat = () => {
               />
               <button
                 onClick={handleSendMessage}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 dark:from-blue-500 dark:to-green-500 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm shadow-md"
+                className="btn-primary"
               >
                 <FaPaperPlane /> Send
               </button>

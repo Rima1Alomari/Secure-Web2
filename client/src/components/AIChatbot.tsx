@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { FaRobot, FaPaperPlane, FaSpinner } from 'react-icons/fa'
+import { AssistantSuggestion } from '../ai/assistantContext'
 
 interface Message {
   id: string
@@ -11,9 +12,12 @@ interface Message {
 interface AIChatbotProps {
   placeholder?: string
   title?: string
+  suggestions?: AssistantSuggestion[]
+  onSuggestionClick?: (prompt: string) => void
+  systemPrompt?: string
 }
 
-const AIChatbot = ({ placeholder = "Ask me anything...", title = "AI Assistant" }: AIChatbotProps) => {
+const AIChatbot = ({ placeholder = "Ask me anything...", title = "AI Assistant", suggestions = [], onSuggestionClick, systemPrompt }: AIChatbotProps) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -30,18 +34,19 @@ const AIChatbot = ({ placeholder = "Ask me anything...", title = "AI Assistant" 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = async () => {
-    if (!input.trim() || isTyping) return
+  const handleSend = async (customMessage?: string) => {
+    const messageToSend = customMessage || input.trim()
+    if (!messageToSend || isTyping) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text: messageToSend,
       isBot: false,
       timestamp: new Date()
     }
 
     setMessages(prev => [...prev, userMessage])
-    const currentInput = input
+    const currentInput = messageToSend
     setInput('')
     setIsTyping(true)
 
@@ -62,7 +67,8 @@ const AIChatbot = ({ placeholder = "Ask me anything...", title = "AI Assistant" 
         },
         body: JSON.stringify({
           message: currentInput,
-          conversationHistory: conversationHistory
+          conversationHistory: conversationHistory,
+          systemPrompt: systemPrompt
         })
       })
 
@@ -164,15 +170,38 @@ const AIChatbot = ({ placeholder = "Ask me anything...", title = "AI Assistant" 
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Suggestions */}
+      {suggestions.length > 0 && (
+        <div className="px-4 pt-2 pb-2 border-t border-blue-200/50 dark:border-blue-800/50 flex-shrink-0">
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((suggestion, idx) => (
+              <button
+                key={idx}
+                onClick={() => {
+                  handleSend(suggestion.prompt)
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 hover:from-blue-100 hover:to-green-100 dark:hover:from-blue-900/30 dark:hover:to-green-900/30 text-gray-700 dark:text-gray-300 rounded-lg border border-blue-200/50 dark:border-blue-800/50 transition-all hover:shadow-sm"
+              >
+                {suggestion.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="p-4 border-t border-blue-200/50 dark:border-blue-800/50 flex-shrink-0">
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSend()
+              }
+            }}
             placeholder={placeholder}
-            className="flex-1 px-4 py-2 bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            className="ai-chatbot-input flex-1 px-4 py-2 bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
           />
           <button
             onClick={handleSend}
