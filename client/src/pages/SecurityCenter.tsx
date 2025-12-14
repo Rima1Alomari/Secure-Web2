@@ -467,8 +467,8 @@ export default function SecurityCenter() {
           </div>
         </div>
 
-            {/* Compliance Overview */}
-            <div className="card mb-6">
+        {/* Compliance Overview */}
+        <div className="card mb-6">
           <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent mb-6">Compliance Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.entries(compliance).map(([standard, score]) => (

@@ -68,7 +68,6 @@ const FileManager = () => {
   const [newFolderName, setNewFolderName] = useState('')
   const [editingTags, setEditingTags] = useState<{ file: FileItem; tags: string[] } | null>(null)
   const [transcriptionFile, setTranscriptionFile] = useState<FileItem | null>(null)
-  
   const navigate = useNavigate()
 
   // Load files from localStorage on mount
@@ -141,7 +140,7 @@ const FileManager = () => {
         case 'name':
           return a.name.localeCompare(b.name)
         case 'date':
-          return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+          return new Date(b.uploadedAt || b.createdAt || 0).getTime() - new Date(a.uploadedAt || a.createdAt || 0).getTime()
         case 'size':
           return b.size - a.size
         case 'type':
@@ -288,6 +287,36 @@ const FileManager = () => {
     disabled: uploading
   })
 
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const token = getToken() || 'mock-token'
+      const fileId = (file as any)._id || file.id
+      const response = await axios.get(`${API_URL}/files/${fileId}/download-url`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (response.data.downloadUrl) {
+        window.open(response.data.downloadUrl, '_blank')
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      setToast({ message: 'Failed to download file', type: 'error' })
+    }
+  }
+
+  const isAudioVideo = (file: FileItem) => {
+    return file.type.includes('audio') || file.type.includes('video')
+  }
+
+  const getFileTypeLabel = (type: string) => {
+    if (type.includes('pdf')) return 'PDF'
+    if (type.includes('word') || type.includes('document')) return 'Word'
+    if (type.includes('excel') || type.includes('spreadsheet')) return 'Excel'
+    if (type.includes('image')) return 'Image'
+    if (type.includes('video')) return 'Video'
+    if (type.includes('audio')) return 'Audio'
+    if (type === 'folder') return 'Folder'
+    return 'File'
+  }
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes'
@@ -653,7 +682,7 @@ const FileManager = () => {
                       {getFileTypeLabel(file.type)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {new Date(file.uploadedAt).toLocaleDateString()}
+                      {new Date(file.createdAt || file.uploadedAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex flex-wrap gap-1">
