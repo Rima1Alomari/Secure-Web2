@@ -185,7 +185,6 @@ const Chat = () => {
       <div className="page-container">
         <div className="page-header">
           <h1 className="page-title">Chat</h1>
-          <p className="page-subtitle">Communicate with your team in real-time</p>
         </div>
 
         <div className="card flex" style={{ height: 'calc(100vh - 250px)', minHeight: '600px' }}>

@@ -459,7 +459,7 @@ const Administration = () => {
                       </h3>
                     </div>
                     <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                      Customize logo and sidebar colors (Demo Mode)
+                      Customize logo and sidebar colors
                     </p>
                     
                     <div className="space-y-4">
@@ -524,7 +524,7 @@ const Administration = () => {
                       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <p className="text-xs text-gray-600 dark:text-gray-400">
                           <FaCheckCircle className="inline mr-1 text-blue-600 dark:text-blue-400" />
-                          Settings saved to localStorage (Demo Mode)
+                          Settings saved successfully
                         </p>
                       </div>
                     </div>

@@ -128,7 +128,6 @@ const Recent = () => {
       <div className="page-container">
         <div className="page-header">
           <h1 className="page-title">Recent</h1>
-          <p className="page-subtitle">Recently opened files, rooms, and meetings</p>
         </div>
 
         {itemsWithDetails.length === 0 ? (

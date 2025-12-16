@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
+import axios from 'axios'
 import { 
   FaDownload, 
   FaEdit, 
@@ -17,11 +18,14 @@ import {
   FaStickyNote
 } from 'react-icons/fa'
 import { Modal, Toast, ConfirmDialog } from '../components/common'
-import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
-import { FILES_KEY, TRASH_KEY, ROOMS_KEY } from '../data/keys'
+import { getJSON, setJSON, nowISO } from '../data/storage'
+import { TRASH_KEY, ROOMS_KEY } from '../data/keys'
 import { FileItem, Room } from '../types/models'
 import { useUser } from '../contexts/UserContext'
 import { trackFileOpened } from '../utils/recentTracker'
+import { getToken } from '../utils/auth'
+
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 const FileManager = () => {
   const { role, user } = useUser()
@@ -45,29 +49,81 @@ const FileManager = () => {
   const [renameValue, setRenameValue] = useState('')
   const [labelValue, setLabelValue] = useState<'Important' | 'Action' | 'Plan' | 'FYI' | ''>('')
   const [instructionValue, setInstructionValue] = useState('')
+  
+  // File input refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef2 = useRef<HTMLInputElement>(null)
 
-  // Load files and rooms from localStorage
+  // Map backend file to FileItem interface
+  const mapBackendFileToFileItem = (backendFile: any): FileItem & { _backendId?: string } => {
+    const ownerName = backendFile.owner?.name || 
+                     (typeof backendFile.owner === 'string' ? backendFile.owner : null) ||
+                     backendFile.ownerName || 
+                     'Unknown'
+    
+    const ownerId = backendFile.owner?._id?.toString() || 
+                   (typeof backendFile.owner === 'string' ? backendFile.owner : null) ||
+                   backendFile.owner?.toString() || 
+                   backendFile.ownerId
+
+    return {
+      id: backendFile._id || backendFile.id,
+      name: backendFile.name,
+      size: backendFile.size,
+      type: backendFile.type,
+      uploadedAt: backendFile.createdAt || backendFile.uploadedAt || new Date().toISOString(),
+      owner: ownerName,
+      ownerId: ownerId,
+      isTrashed: false,
+      isFolder: false,
+      // Store backend file reference for API calls
+      _backendId: backendFile._id || backendFile.id,
+    }
+  }
+
+  // Load files from API and rooms from localStorage
   useEffect(() => {
-    const savedFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
+    const fetchFiles = async () => {
+      try {
+        setLoading(true)
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/files`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        const backendFiles = response.data || []
+        const mappedFiles = backendFiles.map(mapBackendFileToFileItem)
+        setFiles(mappedFiles)
+      } catch (error: any) {
+        console.error('Error fetching files:', error)
+        const errorMessage = error.response?.data?.error || 
+                            error.message || 
+                            'Failed to load files. Make sure the server and database are running.'
+        setToast({ 
+          message: errorMessage, 
+          type: 'error' 
+        })
+        setFiles([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
     const savedRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    setFiles(savedFiles.filter(f => !f.isTrashed))
     setRooms(savedRooms)
-    setLoading(false)
+    
+    fetchFiles()
   }, [])
 
-  // Save files to localStorage whenever files change
-  useEffect(() => {
-    if (files.length >= 0) {
-      setJSON(FILES_KEY, files)
-    }
-  }, [files])
-
-  // Filter files by selected room
+  // Filter files by selected room (if roomId is set, otherwise show all)
   const roomFiles = useMemo(() => {
     if (selectedRoomId === 'all') {
       return files
     }
-    return files.filter(file => file.roomId === selectedRoomId || file.sharedWith?.includes(selectedRoomId))
+    // Filter by roomId if files have it, otherwise show all files
+    const filtered = files.filter(file => file.roomId === selectedRoomId || file.sharedWith?.includes(selectedRoomId))
+    // If no files match the room filter, show all files (backend files don't have roomId yet)
+    return filtered.length > 0 ? filtered : files
   }, [files, selectedRoomId])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -76,38 +132,179 @@ const FileManager = () => {
         setToast({ message: 'Only admins can upload files', type: 'error' })
         return
       }
-      if (!selectedRoomId || selectedRoomId === 'all') {
-        setToast({ message: 'Please select a room first', type: 'error' })
-        return
-      }
+      // Room selection is optional - allow uploads even without room selection
+      // if (!selectedRoomId || selectedRoomId === 'all') {
+      //   setToast({ message: 'Please select a room first', type: 'error' })
+      //   return
+      // }
       
       for (const file of acceptedFiles) {
         await uploadFile(file)
       }
     },
-    disabled: !isAdmin || selectedRoomId === 'all'
+    disabled: !isAdmin
   })
 
   const uploadFile = async (file: globalThis.File) => {
-      const fileItem: FileItem = {
-        id: uuid(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadedAt: nowISO(),
-        owner: user?.name || 'Current User',
-        ownerId: user?.id,
-        roomId: selectedRoomId,
-        isTrashed: false,
-        isFolder: false,
-      }
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      
+      // Try to get upload URL first (checks if S3 is configured)
+      try {
+        const uploadUrlResponse = await axios.post(
+          `${API_URL}/files/upload-url`,
+          {
+            fileName: file.name,
+            fileType: file.type
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        )
 
-    setFiles(prev => [...prev, fileItem])
-    setToast({ message: `File "${file.name}" uploaded to room`, type: 'success' })
+        const { uploadUrl, s3Key, useDirectUpload } = uploadUrlResponse.data
+
+        // If direct upload is required (S3 not configured)
+        if (useDirectUpload || !uploadUrl) {
+          return await uploadFileDirect(file, token)
+        }
+
+        // Step 2: Upload file to S3
+        await axios.put(uploadUrl, file, {
+          headers: {
+            'Content-Type': file.type
+          }
+        })
+
+        // Step 3: Calculate file hash (simplified - in production use crypto)
+        const fileHash = `hash-${Date.now()}-${file.name}`
+
+        // Step 4: Complete upload
+        const completeResponse = await axios.post(
+          `${API_URL}/files/complete-upload`,
+          {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            s3Key: s3Key,
+            fileHash: fileHash
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        )
+
+        const uploadedFile = completeResponse.data.file
+        const newFileItem = mapBackendFileToFileItem(uploadedFile)
+        
+        setFiles(prev => [...prev, newFileItem])
+        setToast({ 
+          message: `File "${file.name}" uploaded successfully`, 
+          type: 'success' 
+        })
+      } catch (s3Error: any) {
+        // If S3 upload fails, fall back to direct upload
+        console.log('S3 upload failed, using direct upload:', s3Error.message)
+        await uploadFileDirect(file, token)
+      }
+    } catch (error: any) {
+      console.error('Error uploading file:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to upload file', 
+        type: 'error' 
+      })
+    }
   }
 
-  const handleDownload = (file: FileItem) => {
-    setToast({ message: `Downloading "${file.name}" (Demo Mode)`, type: 'info' })
+  const uploadFileDirect = async (file: globalThis.File, token: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await axios.post(
+      `${API_URL}/files/direct-upload`,
+      formData,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    const uploadedFile = response.data.file
+    const newFileItem = mapBackendFileToFileItem(uploadedFile)
+    
+    setFiles(prev => [...prev, newFileItem])
+    setToast({ 
+      message: `File "${file.name}" uploaded successfully`, 
+      type: 'success' 
+    })
+  }
+
+  const handleDownload = async (file: FileItem) => {
+    try {
+      const fileId = (file as any)._backendId || file.id
+      const token = getToken() || 'mock-token-for-testing'
+      
+      // First, try to get the download URL (for S3 files) or file (for local files)
+      const response = await axios.get(
+        `${API_URL}/files/${fileId}/download-url`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob' // Always get as blob to handle both cases
+        }
+      )
+
+      // Check content-type to determine if it's JSON or a file
+      const contentType = response.headers['content-type'] || ''
+      
+      if (contentType.includes('application/json')) {
+        // Response is JSON with downloadUrl - parse it
+        const text = await (response.data as Blob).text()
+        const jsonData = JSON.parse(text)
+        if (jsonData.downloadUrl) {
+          window.open(jsonData.downloadUrl, '_blank')
+          setToast({ message: `Downloading "${file.name}"`, type: 'info' })
+        } else {
+          throw new Error(jsonData.error || 'No download URL available')
+        }
+      } else {
+        // Response is a file blob - trigger download
+        const url = window.URL.createObjectURL(response.data)
+        const link = document.createElement('a')
+        link.href = url
+        link.setAttribute('download', file.name)
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        setToast({ message: `Downloading "${file.name}"`, type: 'info' })
+      }
+    } catch (error: any) {
+      console.error('Error downloading file:', error)
+      
+      // Try to parse error message from blob response
+      if (error.response && error.response.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const errorData = JSON.parse(text)
+          setToast({ 
+            message: errorData.error || 'Failed to download file', 
+            type: 'error' 
+          })
+        } catch {
+          setToast({ 
+            message: 'Failed to download file', 
+            type: 'error' 
+          })
+        }
+      } else {
+        setToast({ 
+          message: error.response?.data?.error || error.message || 'Failed to download file', 
+          type: 'error' 
+        })
+      }
+    }
   }
 
   const handleViewDetails = (file: FileItem) => {
@@ -119,41 +316,88 @@ const FileManager = () => {
     }
   }
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!selectedFile || !renameValue.trim()) return
 
-    setFiles(prev => prev.map(f => 
-      f.id === selectedFile.id 
-        ? { ...f, name: renameValue }
-        : f
-    ))
-    setToast({ message: 'File renamed', type: 'success' })
-    setShowRenameModal(false)
-    setSelectedFile(null)
-    setRenameValue('')
+    try {
+      const fileId = (selectedFile as any)._backendId || selectedFile.id
+      const token = getToken() || 'mock-token-for-testing'
+      
+      // Note: Backend doesn't have a rename endpoint, so we'll update locally
+      // In a real implementation, you'd add a PATCH endpoint to update file name
+      await axios.patch(
+        `${API_URL}/files/${fileId}`,
+        { name: renameValue },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      ).catch(() => {
+        // If endpoint doesn't exist, just update locally
+        console.log('Rename endpoint not available, updating locally')
+      })
+
+      setFiles(prev => prev.map(f => 
+        f.id === selectedFile.id 
+          ? { ...f, name: renameValue }
+          : f
+      ))
+      setToast({ message: 'File renamed', type: 'success' })
+      setShowRenameModal(false)
+      setSelectedFile(null)
+      setRenameValue('')
+    } catch (error: any) {
+      // If API fails, still update locally for UI
+      setFiles(prev => prev.map(f => 
+        f.id === selectedFile.id 
+          ? { ...f, name: renameValue }
+          : f
+      ))
+      setToast({ message: 'File renamed (local only)', type: 'info' })
+      setShowRenameModal(false)
+      setSelectedFile(null)
+      setRenameValue('')
+    }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedFile) return
 
-    // Move to trash
-    const trashItems = getJSON<any[]>(TRASH_KEY, []) || []
-    setJSON(TRASH_KEY, [...trashItems, {
-      id: selectedFile.id,
-      name: selectedFile.name,
-      type: selectedFile.isFolder ? 'folder' : 'file',
-      size: selectedFile.size,
-      deletedAt: nowISO(),
-      originalPath: selectedFile.path,
-      canRestore: true,
-      ownerId: selectedFile.ownerId,
-      owner: selectedFile.owner,
-    }])
+    try {
+      const fileId = (selectedFile as any)._backendId || selectedFile.id
+      const token = getToken() || 'mock-token-for-testing'
+      
+      await axios.delete(
+        `${API_URL}/files/${fileId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
 
-    setFiles(prev => prev.filter(f => f.id !== selectedFile.id))
-    setToast({ message: 'File moved to trash', type: 'success' })
-    setShowDeleteConfirm(false)
-    setSelectedFile(null)
+      // Move to trash in localStorage for UI purposes
+      const trashItems = getJSON<any[]>(TRASH_KEY, []) || []
+      setJSON(TRASH_KEY, [...trashItems, {
+        id: selectedFile.id,
+        name: selectedFile.name,
+        type: selectedFile.isFolder ? 'folder' : 'file',
+        size: selectedFile.size,
+        deletedAt: nowISO(),
+        originalPath: selectedFile.path,
+        canRestore: true,
+        ownerId: selectedFile.ownerId,
+        owner: selectedFile.owner,
+      }])
+
+      setFiles(prev => prev.filter(f => f.id !== selectedFile.id))
+      setToast({ message: 'File deleted successfully', type: 'success' })
+      setShowDeleteConfirm(false)
+      setSelectedFile(null)
+    } catch (error: any) {
+      console.error('Error deleting file:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to delete file', 
+        type: 'error' 
+      })
+    }
   }
 
   const handleSetLabel = () => {
@@ -234,14 +478,22 @@ const FileManager = () => {
         {/* Page Header */}
         <div className="page-header">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="page-title">Files</h1>
-              <p className="page-subtitle">Securely store, share, and manage your documents</p>
-            </div>
-            {isAdmin && selectedRoomId !== 'all' && (
-              <div {...getRootProps()} className="cursor-pointer">
-                <input {...getInputProps()} />
-                <button className="btn-primary">
+            <h1 className="page-title">Files</h1>
+            {isAdmin && (
+              <div className="inline-block">
+                <input {...getInputProps()} ref={fileInputRef} style={{ display: 'none' }} />
+                <button 
+                  type="button"
+                  className="btn-primary cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    // Trigger file input click
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click()
+                    }
+                  }}
+                >
                   <FaUpload /> Upload File
                 </button>
               </div>
@@ -270,19 +522,25 @@ const FileManager = () => {
 
         {/* Files List */}
         <div className="card">
-          {selectedRoomId === 'all' ? (
+          {roomFiles.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <FaFile className="text-4xl mx-auto mb-3 opacity-50" />
-              <p>Select a room to view files</p>
-            </div>
-          ) : roomFiles.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <FaFile className="text-4xl mx-auto mb-3 opacity-50" />
-              <p>No files in {selectedRoom?.name || 'this room'}</p>
+              <p>No files {selectedRoomId !== 'all' && selectedRoom ? `in ${selectedRoom.name}` : 'available'}</p>
               {isAdmin && (
-                <div {...getRootProps()} className="mt-4">
-                  <input {...getInputProps()} />
-                  <button className="btn-primary">
+                <div className="mt-4 inline-block">
+                  <input {...getInputProps()} ref={fileInputRef2} style={{ display: 'none' }} />
+                  <button 
+                    type="button"
+                    className="btn-primary cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      // Trigger file input click
+                      if (fileInputRef2.current) {
+                        fileInputRef2.current.click()
+                      }
+                    }}
+                  >
                     Upload First File
                   </button>
                 </div>

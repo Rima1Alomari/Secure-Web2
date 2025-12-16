@@ -100,7 +100,7 @@ function App() {
                   <Route 
                     path="/trash" 
                     element={
-                      <ProtectedRoute allowedRoles={['user', 'admin']}>
+                      <ProtectedRoute allowedRoles={['admin']}>
                         <TrashBin />
                       </ProtectedRoute>
                     } 

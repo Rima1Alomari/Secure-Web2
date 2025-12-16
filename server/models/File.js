@@ -17,6 +17,10 @@ const fileSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  localPath: {
+    type: String,
+    required: false
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

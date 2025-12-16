@@ -329,8 +329,7 @@ export default function SecurityCenter() {
       <div className="page-container">
         {/* Page Header */}
         <div className="page-header">
-          <h1 className="page-title">Security Center</h1>
-          <p className="page-subtitle">Policy management and audit logging</p>
+          <h1 className="page-title">Security</h1>
         </div>
 
         {/* Tabs */}

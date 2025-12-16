@@ -59,7 +59,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/calendar', icon: FaCalendarAlt, label: 'Calendar', roles: ['user', 'admin'] as UserRole[] },
     { path: '/files', icon: FaFile, label: 'Files', roles: ['user', 'admin'] as UserRole[] },
     { path: '/recent', icon: FaClock, label: 'Recent', roles: ['user', 'admin'] as UserRole[] },
-    { path: '/trash', icon: FaTrash, label: 'Trash', roles: ['user', 'admin'] as UserRole[] },
+    { path: '/trash', icon: FaTrash, label: 'Trash', roles: ['admin'] as UserRole[] },
     { path: '/security', icon: FaShieldAlt, label: 'Security', roles: ['admin', 'security'] as UserRole[] },
     { path: '/administration', icon: FaCog, label: 'Admin', roles: ['admin'] as UserRole[] },
   ]
@@ -196,6 +196,7 @@ export default function Layout({ children }: LayoutProps) {
 
                 {/* Right Side Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <RoleSwitcher />
                   <NotificationsCenter />
                   <button
                     onClick={handleLogout}
@@ -224,6 +225,7 @@ export default function Layout({ children }: LayoutProps) {
 
               {/* Right Side Actions */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                <RoleSwitcher />
                 <NotificationsCenter />
               </div>
             </div>
@@ -259,9 +261,6 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Floating AI Assistant */}
         <FloatingAIAssistant />
-        
-        {/* Role Switcher - For testing/demo (remove in production) */}
-        <RoleSwitcher />
       </div>
     </div>
   )

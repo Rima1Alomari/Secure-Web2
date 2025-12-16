@@ -40,7 +40,7 @@ router.post('/register', deviceFingerprint, async (req, res) => {
       deviceFingerprint: req.deviceFingerprint
     })
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email } })
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role || 'user' } })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -98,7 +98,7 @@ router.post('/login', deviceFingerprint, async (req, res) => {
       mfaUsed: securitySettings?.mfaEnabled || false
     })
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email } })
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role || 'user' } })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

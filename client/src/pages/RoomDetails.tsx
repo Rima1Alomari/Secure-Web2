@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { 
   FaPaperPlane, 
   FaUser, 
@@ -11,7 +12,8 @@ import {
   FaCog,
   FaLock,
   FaDownload,
-  FaFile
+  FaFile,
+  FaPlus
 } from 'react-icons/fa'
 import { Modal, Toast, ConfirmDialog } from '../components/common'
 import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
@@ -19,6 +21,9 @@ import { ROOMS_KEY, CHAT_MESSAGES_KEY, FILES_KEY, EVENTS_KEY } from '../data/key
 import { Room, ChatMessage, FileItem, EventItem } from '../types/models'
 import { useUser } from '../contexts/UserContext'
 import { trackRoomOpened } from '../utils/recentTracker'
+import { getToken } from '../utils/auth'
+
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 
 type Tab = 'chat' | 'files' | 'meetings'
 
@@ -37,6 +42,7 @@ const RoomDetails = () => {
   
   // Files state
   const [roomFiles, setRoomFiles] = useState<FileItem[]>([])
+  const [uploading, setUploading] = useState(false)
   
   // Meetings state
   const [roomMeetings, setRoomMeetings] = useState<EventItem[]>([])
@@ -87,12 +93,46 @@ const RoomDetails = () => {
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
     setMessages(roomMessages)
     
-    // Load files for this room
-    const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
-    const files = allFiles.filter(file => 
-      file.sharedWith && file.sharedWith.includes(id)
-    )
-    setRoomFiles(files)
+    // Load files for this room from backend API
+    const fetchRoomFiles = async () => {
+      try {
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/files`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        const backendFiles = response.data || []
+        // Map backend files to FileItem and filter by room
+        const mappedFiles = backendFiles
+          .map((backendFile: any) => ({
+            id: backendFile._id || backendFile.id,
+            name: backendFile.name,
+            size: backendFile.size,
+            type: backendFile.type,
+            uploadedAt: backendFile.createdAt || backendFile.uploadedAt || new Date().toISOString(),
+            owner: backendFile.owner?.name || backendFile.ownerName || 'Unknown',
+            ownerId: backendFile.owner?._id?.toString() || backendFile.owner?.toString() || backendFile.ownerId,
+            isTrashed: false,
+            isFolder: false,
+            sharedWith: [id], // Assume files are shared with this room
+            _backendId: backendFile._id || backendFile.id,
+          }))
+          .filter((file: FileItem) => 
+            (file as any).sharedWith?.includes(id) || file.roomId === id
+          )
+        setRoomFiles(mappedFiles)
+      } catch (error: any) {
+        console.error('Error fetching room files:', error)
+        // Fallback to localStorage if API fails
+        const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
+        const files = allFiles.filter(file => 
+          file.sharedWith && file.sharedWith.includes(id)
+        )
+        setRoomFiles(files)
+      }
+    }
+    
+    fetchRoomFiles()
     
     // Load meetings for this room (events with roomId in description or metadata)
     const allEvents = getJSON<EventItem[]>(EVENTS_KEY, []) || []
@@ -145,27 +185,134 @@ const RoomDetails = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.multiple = false
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file || !id) return
 
-      const fileItem: FileItem = {
-        id: uuid(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadedAt: nowISO(),
-        owner: user?.name || 'Current User',
-        ownerId: user?.id,
-        sharedWith: [id], // Share with this room
-      }
-
-      const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
-      setJSON(FILES_KEY, [...allFiles, fileItem])
-      setRoomFiles([...roomFiles, fileItem])
-      setToast({ message: `File "${file.name}" uploaded to room`, type: 'success' })
+      await uploadFileToBackend(file, id)
     }
     input.click()
+  }
+
+  const uploadFileToBackend = async (file: globalThis.File, roomId: string) => {
+    try {
+      setUploading(true)
+      const token = getToken() || 'mock-token-for-testing'
+      
+      // Try S3 upload first, fall back to direct upload
+      try {
+        const uploadUrlResponse = await axios.post(
+          `${API_URL}/files/upload-url`,
+          {
+            fileName: file.name,
+            fileType: file.type
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        )
+
+        const { uploadUrl, s3Key, useDirectUpload } = uploadUrlResponse.data
+
+        // If direct upload is required (S3 not configured)
+        if (useDirectUpload || !uploadUrl) {
+          return await uploadFileDirect(file, roomId, token)
+        }
+
+        // Upload to S3
+        await axios.put(uploadUrl, file, {
+          headers: {
+            'Content-Type': file.type
+          }
+        })
+
+        const fileHash = `hash-${Date.now()}-${file.name}`
+
+        const completeResponse = await axios.post(
+          `${API_URL}/files/complete-upload`,
+          {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            s3Key: s3Key,
+            fileHash: fileHash
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        )
+
+        const uploadedFile = completeResponse.data.file
+        const newFileItem: FileItem & { _backendId?: string } = {
+          id: uploadedFile._id || uploadedFile.id,
+          name: uploadedFile.name,
+          size: uploadedFile.size,
+          type: uploadedFile.type,
+          uploadedAt: uploadedFile.createdAt || uploadedFile.uploadedAt || new Date().toISOString(),
+          owner: uploadedFile.owner?.name || uploadedFile.ownerName || user?.name || 'Unknown',
+          ownerId: uploadedFile.owner?._id?.toString() || uploadedFile.owner?.toString() || user?.id,
+          isTrashed: false,
+          isFolder: false,
+          sharedWith: [roomId],
+          _backendId: uploadedFile._id || uploadedFile.id,
+        }
+        
+        setRoomFiles(prev => [...prev, newFileItem])
+        setToast({ 
+          message: `File "${file.name}" uploaded successfully`, 
+          type: 'success' 
+        })
+      } catch (s3Error: any) {
+        // Fall back to direct upload
+        console.log('S3 upload failed, using direct upload:', s3Error.message)
+        await uploadFileDirect(file, roomId, token)
+      }
+    } catch (error: any) {
+      console.error('Error uploading file:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to upload file. Please try again.', 
+        type: 'error' 
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const uploadFileDirect = async (file: globalThis.File, roomId: string, token: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await axios.post(
+      `${API_URL}/files/direct-upload`,
+      formData,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    const uploadedFile = response.data.file
+    const newFileItem: FileItem & { _backendId?: string } = {
+      id: uploadedFile._id || uploadedFile.id,
+      name: uploadedFile.name,
+      size: uploadedFile.size,
+      type: uploadedFile.type,
+      uploadedAt: uploadedFile.createdAt || uploadedFile.uploadedAt || new Date().toISOString(),
+      owner: uploadedFile.owner?.name || uploadedFile.ownerName || user?.name || 'Unknown',
+      ownerId: uploadedFile.owner?._id?.toString() || uploadedFile.owner?.toString() || user?.id,
+      isTrashed: false,
+      isFolder: false,
+      sharedWith: [roomId],
+      _backendId: uploadedFile._id || uploadedFile.id,
+    }
+    
+    setRoomFiles(prev => [...prev, newFileItem])
+    setToast({ 
+      message: `File "${file.name}" uploaded successfully`, 
+      type: 'success' 
+    })
   }
 
   const handleScheduleMeeting = () => {
@@ -387,8 +534,9 @@ const RoomDetails = () => {
                 <button
                   onClick={handleUploadFile}
                   className="btn-primary"
+                  disabled={uploading}
                 >
-                  <FaUpload /> Upload File
+                  <FaUpload /> {uploading ? 'Uploading...' : 'Upload File'}
                 </button>
               </div>
               {roomFiles.length === 0 ? (
@@ -398,8 +546,9 @@ const RoomDetails = () => {
                   <button
                     onClick={handleUploadFile}
                     className="btn-primary mt-4"
+                    disabled={uploading}
                   >
-                    Upload First File
+                    {uploading ? 'Uploading...' : 'Upload First File'}
                   </button>
                 </div>
               ) : (
@@ -423,7 +572,29 @@ const RoomDetails = () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => setToast({ message: `Downloading "${file.name}" (Demo Mode)`, type: 'info' })}
+                        onClick={async () => {
+                          try {
+                            const fileId = (file as any)._backendId || file.id
+                            const token = getToken() || 'mock-token-for-testing'
+                            
+                            const response = await axios.get(
+                              `${API_URL}/files/${fileId}/download-url`,
+                              {
+                                headers: { Authorization: `Bearer ${token}` }
+                              }
+                            )
+
+                            const { downloadUrl } = response.data
+                            window.open(downloadUrl, '_blank')
+                            setToast({ message: `Downloading "${file.name}"`, type: 'info' })
+                          } catch (error: any) {
+                            console.error('Error downloading file:', error)
+                            setToast({ 
+                              message: error.response?.data?.error || 'Failed to download file', 
+                              type: 'error' 
+                            })
+                          }
+                        }}
                         className="btn-secondary px-3 py-1.5"
                       >
                         <FaDownload />
@@ -557,12 +728,71 @@ const RoomDetails = () => {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Members ({memberIds.length})
+                Manage Members ({memberIds.length})
               </label>
-              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Member management UI would go here. For now, members are managed automatically.
-                </p>
+              <div className="space-y-3">
+                {memberIds.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    No members added yet. Add member IDs below.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {memberIds.map((memberId, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FaUser className="text-gray-500 dark:text-gray-400" />
+                          <span className="text-sm text-gray-900 dark:text-white font-medium">
+                            {memberId || `Member ${index + 1}`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updated = memberIds.filter((_, i) => i !== index)
+                            setMemberIds(updated)
+                          }}
+                          className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                          title="Remove member"
+                        >
+                          <FaTrash className="text-sm" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter member ID or email"
+                    className="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        const input = e.target as HTMLInputElement
+                        const value = input.value.trim()
+                        if (value && !memberIds.includes(value)) {
+                          setMemberIds([...memberIds, value])
+                          input.value = ''
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={(e) => {
+                      const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement
+                      const value = input?.value.trim()
+                      if (value && !memberIds.includes(value)) {
+                        setMemberIds([...memberIds, value])
+                        input.value = ''
+                      }
+                    }}
+                    className="btn-secondary px-4 py-2 text-sm"
+                    title="Add member"
+                  >
+                    <FaPlus />
+                  </button>
+                </div>
               </div>
             </div>
             <div className="flex gap-3 pt-4">

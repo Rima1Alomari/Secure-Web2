@@ -1,11 +1,12 @@
 import rateLimit from 'express-rate-limit'
 import { body, validationResult } from 'express-validator'
 import { isSaudiIP } from '../utils/ksaCompliance.js'
+import crypto from 'crypto'
 
 // Device fingerprinting (simplified)
 export const deviceFingerprint = (req, res, next) => {
   const fingerprint = req.headers['user-agent'] + req.ip
-  req.deviceFingerprint = require('crypto').createHash('sha256').update(fingerprint).digest('hex')
+  req.deviceFingerprint = crypto.createHash('sha256').update(fingerprint).digest('hex')
   next()
 }
 

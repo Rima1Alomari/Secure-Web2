@@ -20,18 +20,18 @@ export default function RoleSwitcher() {
   }
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-2 border-blue-200/50 dark:border-blue-800/50 rounded-xl p-4 shadow-xl shadow-blue-500/10">
-      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+    <div className="flex items-center gap-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border border-blue-200/50 dark:border-blue-800/50 rounded-lg px-3 py-1.5 shadow-sm">
+      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300">
         Role: <span className="text-blue-600 dark:text-blue-400 font-bold">{role}</span>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex gap-1">
         {roles.map((r) => (
           <button
             key={r}
             onClick={() => handleRoleChange(r)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+            className={`px-2 py-1 rounded text-xs font-medium transition-all duration-200 ${
               role === r
-                ? 'bg-gradient-to-r from-blue-600 to-green-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-blue-600 to-green-600 text-white shadow-sm'
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >

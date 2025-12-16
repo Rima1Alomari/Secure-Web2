@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { FaPlus, FaCalendarAlt, FaClock, FaMapMarkerAlt, FaEdit, FaTrash, FaTimes, FaVideo } from 'react-icons/fa'
 import { Modal, Toast, ConfirmDialog } from '../components/common'
 import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
@@ -19,6 +19,7 @@ interface Event extends EventItem {
 
 const Calendar = () => {
   const location = useLocation()
+  const navigate = useNavigate()
   const { role, user } = useUser()
   const isAdmin = role === 'admin'
   
@@ -196,6 +197,7 @@ const Calendar = () => {
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date)
+    // Only open create modal for admins
     if (isAdmin) {
       setNewEvent({
         ...newEvent,
@@ -218,9 +220,15 @@ const Calendar = () => {
     // Navigate to video room or meeting
     const roomId = (event as any).roomId
     if (roomId) {
-      window.location.href = `/rooms/${roomId}`
+      navigate(`/rooms/${roomId}`)
     } else {
-      setToast({ message: 'Joining event... (Demo Mode)', type: 'info' })
+      // Show event details instead of demo mode
+      setSelectedEvent(event)
+      setShowEventDetailsModal(true)
+      // Track meeting opened
+      if (user?.id) {
+        trackMeetingOpened(event.id, event.title, user.id)
+      }
     }
   }
 
@@ -323,10 +331,7 @@ const Calendar = () => {
       <div className="page-container">
         <div className="page-header">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="page-title">Calendar</h1>
-              <p className="page-subtitle">Manage events and meetings</p>
-            </div>
+            <h1 className="page-title">Calendar</h1>
             {isAdmin && (
               <button
                 onClick={() => setShowCreateModal(true)}

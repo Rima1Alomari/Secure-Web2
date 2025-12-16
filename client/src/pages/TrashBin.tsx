@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { FaTrash, FaUndo, FaFile, FaFolder, FaSearch, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight } from 'react-icons/fa'
-import TableSkeleton from '../components/TableSkeleton'
+import { FaTrash, FaUndo, FaFile, FaFolder } from 'react-icons/fa'
 import { Toast, ConfirmDialog } from '../components/common'
 import { getJSON, setJSON } from '../data/storage'
 import { FILES_KEY, TRASH_KEY } from '../data/keys'
@@ -13,13 +12,8 @@ const TrashBin = () => {
   
   const [trashItems, setTrashItems] = useState<TrashItem[]>([])
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortField, setSortField] = useState<'name' | 'type' | 'size' | 'deletedAt' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const [currentPage, setCurrentPage] = useState(1)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<TrashItem | null>(null)
-  const itemsPerPage = 10
   const [isLoading, setIsLoading] = useState(true)
 
   // Load trash items from localStorage
@@ -55,67 +49,14 @@ const TrashBin = () => {
     })
   }
 
-  // Filter and sort data
+  // Sort by deleted date (most recent first)
   const filteredAndSortedItems = useMemo(() => {
-    let filtered = trashItems.filter(item =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-
-    if (sortField) {
-      filtered = [...filtered].sort((a, b) => {
-        let aVal: any
-        let bVal: any
-
-        if (sortField === 'deletedAt') {
-          aVal = a.deletedAt ? new Date(a.deletedAt).getTime() : 0
-          bVal = b.deletedAt ? new Date(b.deletedAt).getTime() : 0
-        } else if (sortField === 'size') {
-          aVal = a.size || 0
-          bVal = b.size || 0
-        } else if (sortField === 'type') {
-          aVal = a.type
-          bVal = b.type
-        } else {
-          aVal = String(a[sortField]).toLowerCase()
-          bVal = String(b[sortField]).toLowerCase()
-        }
-
-        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-        return 0
-      })
-    }
-
-    return filtered
-  }, [trashItems, searchQuery, sortField, sortDirection])
-
-  // Pagination
-  const totalPages = Math.ceil(filteredAndSortedItems.length / itemsPerPage)
-  const paginatedItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    return filteredAndSortedItems.slice(startIndex, startIndex + itemsPerPage)
-  }, [filteredAndSortedItems, currentPage])
-
-  const handleSort = (field: 'name' | 'type' | 'size' | 'deletedAt') => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
-    }
-    setCurrentPage(1)
-  }
-
-  const SortIcon = ({ field }: { field: 'name' | 'type' | 'size' | 'deletedAt' }) => {
-    if (sortField !== field) {
-      return <FaSortUp className="text-gray-400 opacity-50" />
-    }
-    return sortDirection === 'asc' ? (
-      <FaSortUp className="text-blue-600 dark:text-blue-400" />
-    ) : (
-      <FaSortDown className="text-blue-600 dark:text-blue-400" />
-    )
-  }
+    return [...trashItems].sort((a, b) => {
+      const aTime = a.deletedAt ? new Date(a.deletedAt).getTime() : 0
+      const bTime = b.deletedAt ? new Date(b.deletedAt).getTime() : 0
+      return bTime - aTime
+    })
+  }, [trashItems])
 
   const handleRestore = (item: TrashItem) => {
     // Remove from trash
@@ -169,10 +110,7 @@ const TrashBin = () => {
     <div className="page-content">
       <div className="page-container">
         <div className="flex justify-between items-center page-header">
-          <div>
-            <h1 className="page-title">Trash Bin</h1>
-            <p className="page-subtitle">Manage deleted files</p>
-          </div>
+          <h1 className="page-title">Trash</h1>
           {trashItems.length > 0 && (
             <button
               onClick={handleEmptyTrash}
@@ -184,7 +122,16 @@ const TrashBin = () => {
         </div>
 
         {isLoading ? (
-          <TableSkeleton rows={5} columns={5} />
+          <div className="card">
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl animate-pulse">
+                  <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : trashItems.length === 0 ? (
           <div className="card p-16 text-center">
             <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full mb-6">
@@ -198,162 +145,62 @@ const TrashBin = () => {
             </p>
           </div>
         ) : (
-          <div className="card overflow-hidden">
-            {/* Search Bar */}
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FaSearch className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  placeholder="Search by name..."
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-400 dark:focus:border-blue-400 transition-all duration-200 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Table with horizontal scroll on small screens */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-100 dark:bg-gray-700">
-                  <tr>
-                    <th 
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Name
-                        <SortIcon field="name" />
+          <div className="card">
+            <div className="space-y-3">
+              {filteredAndSortedItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {item.type === 'folder' ? (
+                      <FaFolder className="text-yellow-600 dark:text-yellow-400 flex-shrink-0 text-xl" />
+                    ) : (
+                      <FaFile className="text-blue-600 dark:text-blue-400 flex-shrink-0 text-xl" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                        {item.name}
+                      </h3>
+                      <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-500 mt-1">
+                        <span className="capitalize">{item.type}</span>
+                        {item.size && (
+                          <>
+                            <span>•</span>
+                            <span>{formatSize(item.size)}</span>
+                          </>
+                        )}
+                        {item.deletedAt && (
+                          <>
+                            <span>•</span>
+                            <span>{formatDate(item.deletedAt)}</span>
+                          </>
+                        )}
                       </div>
-                    </th>
-                    <th 
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      onClick={() => handleSort('type')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Type
-                        <SortIcon field="type" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      onClick={() => handleSort('size')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Size
-                        <SortIcon field="size" />
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      onClick={() => handleSort('deletedAt')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Deleted At
-                        <SortIcon field="deletedAt" />
-                      </div>
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {paginatedItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {item.type === 'folder' ? (
-                            <FaFolder className="text-yellow-600 dark:text-yellow-400" />
-                          ) : (
-                            <FaFile className="text-blue-600 dark:text-blue-400" />
-                          )}
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300 capitalize">
-                        {item.type}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                        {item.type === 'folder' ? '-' : formatSize(item.size)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                        {item.deletedAt ? formatDate(item.deletedAt) : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleRestore(item)}
-                            className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors p-2 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg"
-                            title="Restore"
-                          >
-                            <FaUndo className="text-lg" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setItemToDelete(item)
-                              setShowDeleteConfirm(true)
-                            }}
-                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
-                            title="Delete Permanently"
-                          >
-                            <FaTrash className="text-lg" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <div className="text-sm text-gray-700 dark:text-gray-300">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedItems.length)} of {filteredAndSortedItems.length} items
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                  >
-                    <FaChevronLeft className="text-xs" />
-                    Previous
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          currentPage === page
-                            ? 'bg-blue-600 dark:bg-blue-500 text-white'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-                  >
-                    Next
-                    <FaChevronRight className="text-xs" />
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleRestore(item)}
+                      className="btn-secondary px-3 py-1.5"
+                      title="Restore"
+                    >
+                      <FaUndo /> Restore
+                    </button>
+                    <button
+                      onClick={() => {
+                        setItemToDelete(item)
+                        setShowDeleteConfirm(true)
+                      }}
+                      className="btn-danger px-3 py-1.5"
+                      title="Delete Permanently"
+                    >
+                      <FaTrash /> Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
 

@@ -44,12 +44,17 @@ export const logAuditEvent = async (eventType, userId, details, metadata = {}) =
     deviceFingerprint: metadata.deviceFingerprint
   }
   
-  // Save to MongoDB
+  // Save to MongoDB (only if connected)
   try {
-    const log = new AuditLog(auditEntry)
-    await log.save()
+    const mongoose = await import('mongoose')
+    if (mongoose.default.connection.readyState === 1) {
+      const log = new AuditLog(auditEntry)
+      await log.save()
+    } else {
+      console.warn('MongoDB not connected, skipping audit log')
+    }
   } catch (error) {
-    console.error('MongoDB audit log error:', error)
+    console.error('MongoDB audit log error (non-fatal):', error.message)
   }
   
   // Save to blockchain if enabled

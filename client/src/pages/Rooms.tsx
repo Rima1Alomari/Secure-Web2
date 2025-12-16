@@ -106,10 +106,7 @@ const Rooms = () => {
     <div className="page-content">
       <div className="page-container">
         <div className="flex justify-between items-center page-header">
-          <div>
-            <h1 className="page-title">Rooms</h1>
-            <p className="page-subtitle">Your workspace rooms</p>
-          </div>
+          <h1 className="page-title">Rooms</h1>
           {role === 'admin' && (
             <button
               onClick={() => setShowCreateModal(true)}
@@ -152,17 +149,12 @@ const Rooms = () => {
                 onClick={() => handleRoomClick(room.id)}
                 className={`text-left card-hover p-6 transition-all duration-200 ${
                   room.unreadCount && room.unreadCount > 0
-                    ? 'border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10'
+                    ? 'border-blue-500 dark:border-blue-400 shadow-lg shadow-blue-500/10 ring-2 ring-blue-500/20'
                     : ''
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {room.isPrivate ? (
-                      <FaLock className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                    ) : (
-                      <FaUnlock className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                    )}
                     <h3 className="text-xl font-bold text-gray-900 dark:text-white truncate">
                       {room.name}
                     </h3>
@@ -173,24 +165,16 @@ const Rooms = () => {
                     )}
                   </div>
                 </div>
-                <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm line-clamp-2">
-                  {room.description || 'No description'}
-                </p>
                 <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-center gap-2">
                     <FaUsers />
-                    <span>{room.members}/{room.maxMembers}</span>
+                    <span>{room.members}/{room.maxMembers} members</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <FaClock />
                     <span>{formatTimeAgo(room.lastMessageTime || room.updatedAt)}</span>
                   </div>
                 </div>
-                {room.lastMessage && (
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-2 truncate">
-                    {room.lastMessage}
-                  </p>
-                )}
               </button>
             ))}
           </div>

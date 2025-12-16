@@ -79,7 +79,7 @@ const Dashboard = () => {
         return eventDate >= now
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 5)
+      .slice(0, 5) // Show next 3-5 meetings (max 5)
   }, [refreshKey])
 
   // Get shared files (files shared with current user or rooms user is in)
@@ -176,6 +176,7 @@ const Dashboard = () => {
   }
 
   const handleMeetingClick = (event: EventItem) => {
+    // Navigate to Calendar and focus the event
     navigate('/calendar', { state: { focusEventId: event.id } })
   }
 
@@ -183,9 +184,61 @@ const Dashboard = () => {
     navigate(`/rooms/${roomId}`)
   }
 
-  const handleDownloadFile = (file: FileItem) => {
-    // Demo mode - just show toast
-    setToast({ message: `Downloading "${file.name}" (Demo Mode)`, type: 'info' })
+  const handleDownloadFile = async (file: FileItem) => {
+    try {
+      // Check if file has backend ID (uploaded via API)
+      const fileId = (file as any)._backendId || file.id
+      
+      // If it's a backend file, use API download
+      if ((file as any)._backendId) {
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        const axios = (await import('axios')).default
+        const { getToken } = await import('../utils/auth')
+        const token = getToken() || 'mock-token-for-testing'
+        
+        const response = await axios.get(
+          `${API_URL}/files/${fileId}/download-url`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        )
+
+        const { downloadUrl } = response.data
+        
+        // Open download URL
+        if (downloadUrl) {
+          window.open(downloadUrl, '_blank')
+          setToast({ message: `Downloading "${file.name}"`, type: 'info' })
+        } else {
+          // If it's a local file, try direct download
+          const directResponse = await axios.get(
+            `${API_URL}/files/${fileId}/download-url`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+              responseType: 'blob'
+            }
+          )
+          const url = window.URL.createObjectURL(new Blob([directResponse.data]))
+          const link = document.createElement('a')
+          link.href = url
+          link.setAttribute('download', file.name)
+          document.body.appendChild(link)
+          link.click()
+          link.remove()
+          window.URL.revokeObjectURL(url)
+          setToast({ message: `Downloading "${file.name}"`, type: 'info' })
+        }
+      } else {
+        // For localStorage files, show info
+        setToast({ message: `File "${file.name}" is stored locally. Use the Files page to download.`, type: 'info' })
+      }
+    } catch (error: any) {
+      console.error('Error downloading file:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to download file', 
+        type: 'error' 
+      })
+    }
   }
 
   const formatTimeAgo = (timestamp: string) => {
@@ -248,13 +301,11 @@ const Dashboard = () => {
         {/* Page Header */}
         <div className="page-header">
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your rooms, meetings, and shared files</p>
         </div>
 
         {/* Admin-only Quick Actions */}
         {role === 'admin' && (
           <div className="mb-8">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setShowCreateRoomModal(true)}
@@ -312,7 +363,7 @@ const Dashboard = () => {
                     onClick={() => handleRoomClick(room.id)}
                     className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
                       room.unreadCount && room.unreadCount > 0
-                        ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-lg shadow-blue-500/10'
+                        ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-lg shadow-blue-500/20 ring-2 ring-blue-500/30'
                         : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 bg-white dark:bg-gray-800'
                     }`}
                   >
@@ -446,20 +497,29 @@ const Dashboard = () => {
                         <span>•</span>
                         <span>by {file.owner}</span>
                       </div>
-                      {expandedFileId === file.id && file.adminNote && (
+                      {expandedFileId === file.id && (file.adminNote || file.description) && (
                         <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                           <p className="text-sm text-gray-700 dark:text-gray-300">
-                            <strong>Admin Note:</strong> {file.adminNote}
+                            {file.adminNote && (
+                              <>
+                                <strong>Admin Note:</strong> {file.adminNote}
+                              </>
+                            )}
+                            {file.description && !file.adminNote && (
+                              <>
+                                <strong>Description:</strong> {file.description}
+                              </>
+                            )}
                           </p>
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {file.adminNote && (
+                      {(file.adminNote || file.description) && (
                         <button
                           onClick={() => setExpandedFileId(expandedFileId === file.id ? null : file.id)}
                           className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                          title={expandedFileId === file.id ? 'Hide note' : 'Show admin note'}
+                          title={expandedFileId === file.id ? 'Hide note' : 'Show admin note / description'}
                         >
                           {expandedFileId === file.id ? (
                             <FaChevronUp />
