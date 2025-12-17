@@ -386,6 +386,16 @@ const Rooms = () => {
                         <FaInfo className="text-blue-600 dark:text-blue-400" />
                         <span className="text-gray-900 dark:text-white">Info</span>
                       </button>
+                      <button
+                        onClick={() => {
+                          setShowAddMemberModal(true)
+                          setSelectedRoomMenu(null)
+                        }}
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <FaUserPlus className="text-green-600 dark:text-green-400" />
+                        <span className="text-gray-900 dark:text-white">Add Member</span>
+                      </button>
                       {role === 'admin' && (
                         <>
                           <button
@@ -576,7 +586,7 @@ const Rooms = () => {
             setShowAddMemberModal(false)
             setAddMemberSearchQuery('')
           }}
-          title="Add Member"
+          title={selectedRoom ? `Add Member to ${selectedRoom.name}` : "Add Member"}
         >
           <div className="space-y-4">
             <div className="relative">
