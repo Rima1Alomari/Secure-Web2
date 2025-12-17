@@ -6,14 +6,18 @@ import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
 import { ROOMS_KEY, CHAT_MESSAGES_KEY, ADMIN_USERS_KEY } from '../data/keys'
 import { Room, ChatMessage, AdminUserMock } from '../types/models'
 import { useUser } from '../contexts/UserContext'
+import axios from 'axios'
+import { getToken } from '../utils/auth'
 
 const Rooms = () => {
   const navigate = useNavigate()
-  const { role } = useUser()
+  const { role, user } = useUser()
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newRoom, setNewRoom] = useState({ name: '', description: '', isPrivate: false })
   const [roomClassification, setRoomClassification] = useState<'Normal' | 'Confidential' | 'Restricted'>('Normal')
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('')
+  const [invitedUserIds, setInvitedUserIds] = useState<string[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedRoomMenu, setSelectedRoomMenu] = useState<string | null>(null)
   const [showInfoModal, setShowInfoModal] = useState(false)
@@ -56,17 +60,86 @@ const Rooms = () => {
     }
   }, [])
 
-  // Get all users
-  const allUsers = useMemo(() => {
-    return getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+  // Fetch real users from API or use mock users as fallback
+  const [allUsers, setAllUsers] = useState<AdminUserMock[]>([])
+  
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const token = getToken() || 'mock-token-for-testing'
+        const API_URL = import.meta.env.VITE_API_URL || '/api'
+        
+        // Try to fetch real users from API
+        const response = await axios.get(`${API_URL}/auth/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && response.data.length > 0) {
+          // Map API users to AdminUserMock format
+          const mappedUsers: AdminUserMock[] = response.data.map((u: any) => ({
+            id: u.id || u._id,
+            userId: u.userId,
+            name: u.name,
+            email: u.email,
+            role: u.role === 'admin' ? 'Admin' : 'User',
+            status: 'Active' as const,
+            createdAt: new Date().toISOString()
+          }))
+          setAllUsers(mappedUsers)
+          // Also save to localStorage for offline/demo mode
+          setJSON(ADMIN_USERS_KEY, mappedUsers)
+        } else {
+          // Fallback to localStorage mock users
+          const mockUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+          setAllUsers(mockUsers)
+        }
+      } catch (error) {
+        // If API fails, use localStorage mock users
+        console.warn('Failed to fetch users from API, using mock users:', error)
+        const mockUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+        setAllUsers(mockUsers)
+      }
+    }
+    
+    fetchUsers()
   }, [])
 
+  // Filter users for invite search (by ID, name, or email)
+  const filteredUsersForInvite = useMemo(() => {
+    if (!inviteSearchQuery.trim()) return []
+    const query = inviteSearchQuery.toLowerCase()
+    return allUsers
+      .filter(u => 
+        u.id !== user?.id && // Don't show current user
+        !invitedUserIds.includes(u.id) && // Don't show already invited users
+        (
+          u.name.toLowerCase().includes(query) || 
+          u.email.toLowerCase().includes(query) ||
+          (u.userId && u.userId.toLowerCase().includes(query))
+        )
+      )
+      .slice(0, 10)
+  }, [allUsers, inviteSearchQuery, invitedUserIds, user?.id])
+
   // Get rooms with last message and unread count
+  // Only show rooms where the user is a member or is the owner
   const rooms = useMemo(() => {
+    if (!user?.id) return []
+    
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
     
-    return allRooms.map(room => {
+    // Filter rooms: user must be owner OR member
+    const userRooms = allRooms.filter(room => {
+      // User is the owner
+      if (room.ownerId === user.id) return true
+      // User is in the memberIds list
+      if (room.memberIds && room.memberIds.includes(user.id)) return true
+      // If no memberIds exists but user created it (backward compatibility)
+      return false
+    })
+    
+    return userRooms.map(room => {
       const roomMessages = allMessages
         .filter(msg => msg.roomId === room.id)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -81,33 +154,51 @@ const Rooms = () => {
         unreadCount: unreadCount || 0,
       }
     }).sort((a, b) => new Date(b.lastMessageTime || b.updatedAt).getTime() - new Date(a.lastMessageTime || a.updatedAt).getTime())
-  }, [refreshKey])
+  }, [refreshKey, user?.id])
 
   const handleCreateRoom = () => {
-    if (!newRoom.name.trim()) {
+    if (!newRoom.name.trim() || !user?.id) {
       return
     }
+
+    // Combine creator and invited users
+    const allMemberIds = [user.id, ...invitedUserIds]
 
     const room: Room = {
       id: uuid(),
       name: newRoom.name,
       description: newRoom.description,
       isPrivate: newRoom.isPrivate,
-      members: 1,
+      members: allMemberIds.length,
       maxMembers: 50,
       createdAt: nowISO(),
       updatedAt: nowISO(),
+      ownerId: user.id, // Set the creator as owner
       roomLevel: roomClassification,
       classification: roomClassification,
-      memberIds: [],
+      memberIds: allMemberIds, // Add creator and invited users
     }
 
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     setJSON(ROOMS_KEY, [...allRooms, room])
     setNewRoom({ name: '', description: '', isPrivate: false })
     setRoomClassification('Normal')
+    setInviteSearchQuery('')
+    setInvitedUserIds([])
     setShowCreateModal(false)
     setRefreshKey(prev => prev + 1)
+    setToast({ message: `Room created successfully${invitedUserIds.length > 0 ? ` with ${invitedUserIds.length} invite${invitedUserIds.length > 1 ? 's' : ''}` : ''}`, type: 'success' })
+  }
+
+  const handleInviteUser = (userId: string) => {
+    if (!invitedUserIds.includes(userId)) {
+      setInvitedUserIds([...invitedUserIds, userId])
+      setInviteSearchQuery('') // Clear search after selecting
+    }
+  }
+
+  const handleRemoveInvitedUser = (userId: string) => {
+    setInvitedUserIds(invitedUserIds.filter(id => id !== userId))
   }
 
   const handleRoomClick = (roomId: string, event?: React.MouseEvent) => {
@@ -257,7 +348,9 @@ const Rooms = () => {
     if (!memberSearchQuery.trim()) return roomMembers
     const query = memberSearchQuery.toLowerCase()
     return roomMembers.filter(m => 
-      m.name.toLowerCase().includes(query) || m.email.toLowerCase().includes(query)
+      m.name.toLowerCase().includes(query) || 
+      m.email.toLowerCase().includes(query) ||
+      (m.userId && m.userId.toLowerCase().includes(query))
     )
   }, [roomMembers, memberSearchQuery])
 
@@ -267,7 +360,11 @@ const Rooms = () => {
     const query = addMemberSearchQuery.toLowerCase()
     const memberIds = selectedRoom?.memberIds || []
     return allUsers
-      .filter(u => !memberIds.includes(u.id) && (u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)))
+      .filter(u => !memberIds.includes(u.id) && (
+        u.name.toLowerCase().includes(query) || 
+        u.email.toLowerCase().includes(query) ||
+        (u.userId && u.userId.toLowerCase().includes(query))
+      ))
       .slice(0, 10)
   }, [allUsers, addMemberSearchQuery, selectedRoom])
 
@@ -559,9 +656,16 @@ const Rooms = () => {
                                 <FaUsers className="text-white text-sm" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-900 dark:text-white truncate">
-                                  {member.name}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-semibold text-gray-900 dark:text-white truncate">
+                                    {member.name}
+                                  </p>
+                                  {member.userId && (
+                                    <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                                      {member.userId}
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                                   {member.email}
                                 </p>
@@ -616,7 +720,7 @@ const Rooms = () => {
                 type="text"
                 value={addMemberSearchQuery}
                 onChange={(e) => setAddMemberSearchQuery(e.target.value)}
-                placeholder="Search users…"
+                placeholder="Search by name, email, or ID (e.g., #AD001)…"
                 className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               />
             </div>
@@ -637,9 +741,16 @@ const Rooms = () => {
                       <FaUsers className="text-white text-sm" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-white truncate">
-                        {user.name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900 dark:text-white truncate">
+                          {user.name}
+                        </p>
+                        {user.userId && (
+                          <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                            {user.userId}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                         {user.email}
                       </p>
@@ -725,6 +836,8 @@ const Rooms = () => {
             setShowCreateModal(false)
             setNewRoom({ name: '', description: '', isPrivate: false })
             setRoomClassification('Normal')
+            setInviteSearchQuery('')
+            setInvitedUserIds([])
           }}
           title="Create New Room"
         >
@@ -783,12 +896,109 @@ const Rooms = () => {
                 Select the appropriate classification level for this room's data
               </p>
             </div>
+            
+            {/* Invite Users Section */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Invite Users (by ID, name, or email)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaSearch className="text-gray-400 dark:text-gray-500" />
+                </div>
+                <input
+                  type="text"
+                  value={inviteSearchQuery}
+                  onChange={(e) => setInviteSearchQuery(e.target.value)}
+                  placeholder="Search by name, email, or ID (e.g., #AD001)…"
+                  className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                />
+                
+                {/* Search Results Dropdown */}
+                {inviteSearchQuery.trim() && filteredUsersForInvite.length > 0 && (
+                  <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                    {filteredUsersForInvite.map((user) => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleInviteUser(user.id)}
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                          {user.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                              {user.name}
+                            </p>
+                            {user.userId && (
+                              <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded flex-shrink-0">
+                                {user.userId}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {user.email}
+                          </p>
+                        </div>
+                        <FaUserPlus className="text-green-600 dark:text-green-400 flex-shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {inviteSearchQuery.trim() && filteredUsersForInvite.length === 0 && (
+                  <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No users found
+                  </div>
+                )}
+              </div>
+              
+              {/* Invited Users List */}
+              {invitedUserIds.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Invited Users ({invitedUserIds.length})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {invitedUserIds.map((userId) => {
+                      const invitedUser = allUsers.find(u => u.id === userId)
+                      if (!invitedUser) return null
+                      return (
+                        <div
+                          key={userId}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg"
+                        >
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {invitedUser.name}
+                          </span>
+                          {invitedUser.userId && (
+                            <span className="text-xs font-mono text-blue-700 dark:text-blue-300">
+                              {invitedUser.userId}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => handleRemoveInvitedUser(userId)}
+                            className="ml-1 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            title="Remove"
+                          >
+                            <FaTimes className="text-xs" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex gap-3 pt-4">
               <button
                 onClick={() => {
                   setShowCreateModal(false)
                   setNewRoom({ name: '', description: '', isPrivate: false })
                   setRoomClassification('Normal')
+                  setInviteSearchQuery('')
+                  setInvitedUserIds([])
                 }}
                 className="btn-secondary flex-1"
               >

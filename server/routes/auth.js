@@ -19,7 +19,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Validate role if provided
-    const validRoles = ['user', 'admin', 'security']
+    const validRoles = ['user', 'admin']
     const userRole = role && validRoles.includes(role) ? role : 'user'
 
     const existingUser = await User.findOne({ email })
@@ -53,7 +53,7 @@ router.post('/register', async (req, res) => {
       deviceFingerprint: deviceFingerprint
     })
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role || 'user' } })
+    res.json({ token, user: { id: user._id, userId: user.userId, name: user.name, email: user.email, role: user.role || 'user' } })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -62,7 +62,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   console.log('🔐 Login attempt:', { email: req.body.email, ip: req.ip })
   try {
-    const { email, password, mfaCode } = req.body
+    const { email, password } = req.body
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' })
@@ -90,23 +90,35 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    // Check MFA - mandatory in KSA mode
-    const securitySettings = await SecuritySettings.findOne({ user: user._id })
-    const ksaMode = process.env.KSA_HIGH_SECURITY_MODE !== 'false'
-    const mfaRequired = ksaMode || securitySettings?.mfaEnabled
-    
-    if (mfaRequired) {
-      if (!mfaCode) {
-        return res.status(401).json({ 
-          error: 'MFA code required', 
-          mfaRequired: true,
-          error_ar: 'رمز المصادقة متعددة العوامل مطلوب'
-        })
+    // Generate userId if it doesn't exist (for existing users)
+    if (!user.userId) {
+      const rolePrefix = {
+        'admin': 'AD',
+        'user': 'US'
+      }[user.role] || 'US'
+      
+      try {
+        const lastUser = await User.findOne(
+          { userId: new RegExp(`^#${rolePrefix}`) },
+          { userId: 1 }
+        ).sort({ userId: -1 }).exec()
+        
+        let nextNumber = 1
+        if (lastUser && lastUser.userId) {
+          const match = lastUser.userId.match(/#\w{2}(\d+)/)
+          if (match) {
+            nextNumber = parseInt(match[1], 10) + 1
+          }
+        }
+        
+        user.userId = `#${rolePrefix}${String(nextNumber).padStart(3, '0')}`
+        await user.save()
+      } catch (error) {
+        console.error('Error generating userId on login:', error)
       }
-      // In production, verify TOTP code
-      // For now, accept any code in development
     }
 
+    // MFA check removed - login with email and password only
     const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRY })
 
     // Generate device fingerprint if not already set
@@ -120,11 +132,10 @@ router.post('/login', async (req, res) => {
     await logAuditEvent('login', user._id.toString(), 'User logged in', {
       ipAddress: req.ip,
       userAgent: req.headers['user-agent'],
-      deviceFingerprint: deviceFingerprint,
-      mfaUsed: securitySettings?.mfaEnabled || false
+      deviceFingerprint: deviceFingerprint
     })
 
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role || 'user' } })
+    res.json({ token, user: { id: user._id, userId: user.userId, name: user.name, email: user.email, role: user.role || 'user' } })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -138,10 +149,11 @@ router.get('/users', authenticate, async (req, res) => {
       return res.json([]) // Return empty array if MongoDB not connected
     }
 
-    const users = await User.find({}).select('name email _id role').sort({ name: 1 })
+    const users = await User.find({}).select('name email _id role userId').sort({ name: 1 })
     res.json(users.map(u => ({
       id: u._id.toString(),
       _id: u._id.toString(),
+      userId: u.userId,
       name: u.name,
       email: u.email,
       role: u.role || 'user'
@@ -149,6 +161,88 @@ router.get('/users', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error)
     res.json([]) // Return empty array on error
+  }
+})
+
+// Change password
+router.put('/change-password', authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' })
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters long' })
+    }
+
+    const user = await User.findById(req.user._id)
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    const isMatch = await user.comparePassword(currentPassword)
+    if (!isMatch) {
+      await logAuditEvent('password_change_failed', user._id.toString(), 'Failed password change - incorrect current password', {
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      })
+      return res.status(401).json({ error: 'Current password is incorrect' })
+    }
+
+    user.password = newPassword
+    await user.save()
+
+    await logAuditEvent('password_change', user._id.toString(), 'Password changed successfully', {
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    })
+
+    res.json({ message: 'Password changed successfully' })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Endpoint to assign userIds to existing users (one-time migration)
+router.post('/assign-user-ids', authenticate, async (req, res) => {
+  try {
+    const mongoose = await import('mongoose')
+    if (mongoose.default.connection.readyState !== 1) {
+      return res.status(503).json({ error: 'Database not connected' })
+    }
+
+    const usersWithoutId = await User.find({ $or: [{ userId: { $exists: false } }, { userId: null }] })
+    let updatedCount = 0
+
+    for (const user of usersWithoutId) {
+      const rolePrefix = {
+        'admin': 'AD',
+        'user': 'US'
+      }[user.role] || 'US'
+
+      const lastUser = await User.findOne(
+        { userId: new RegExp(`^#${rolePrefix}`) },
+        { userId: 1 }
+      ).sort({ userId: -1 }).exec()
+
+      let nextNumber = 1
+      if (lastUser && lastUser.userId) {
+        const match = lastUser.userId.match(/#\w{2}(\d+)/)
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1
+        }
+      }
+
+      user.userId = `#${rolePrefix}${String(nextNumber).padStart(3, '0')}`
+      await user.save()
+      updatedCount++
+    }
+
+    res.json({ message: `Assigned userIds to ${updatedCount} users`, updatedCount })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
   }
 })
 

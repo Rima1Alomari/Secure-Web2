@@ -30,9 +30,6 @@ export default function ProtectedRoute({
       case 'admin':
         defaultRedirect = '/administration'
         break
-      case 'security':
-        defaultRedirect = '/security'
-        break
       case 'user':
       default:
         defaultRedirect = '/dashboard'

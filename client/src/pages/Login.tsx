@@ -41,6 +41,7 @@ const Login = ({ onLogin }: LoginProps) => {
         // Set user data in context
         setUser({
           id: response.data.user.id,
+          userId: response.data.user.userId,
           name: response.data.user.name,
           email: response.data.user.email,
           role: userRole
@@ -55,9 +56,6 @@ const Login = ({ onLogin }: LoginProps) => {
         switch (userRole) {
           case 'admin':
             redirectPath = '/administration'
-            break
-          case 'security':
-            redirectPath = '/security'
             break
           case 'user':
           default:

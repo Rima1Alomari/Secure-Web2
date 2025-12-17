@@ -7,7 +7,6 @@ import VideoRoom from './pages/VideoRoom'
 import FileManager from './pages/FileManager'
 import SharePage from './pages/SharePage'
 import EditorView from './pages/EditorView'
-import SecurityCenter from './pages/SecurityCenter'
 import Rooms from './pages/Rooms'
 import RoomDetails from './pages/RoomDetails'
 import Chat from './pages/Chat'
@@ -92,7 +91,7 @@ function App() {
                   <Route 
                     path="/dashboard" 
                     element={
-                      <ProtectedRoute allowedRoles={['user', 'admin', 'security']}>
+                      <ProtectedRoute allowedRoles={['user', 'admin']}>
                         <Dashboard />
                       </ProtectedRoute>
                     } 
@@ -154,15 +153,7 @@ function App() {
                     } 
                   />
                   
-                  {/* Security routes: Security (admin + security), Administration (admin only) */}
-                  <Route 
-                    path="/security" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin', 'security']}>
-                        <SecurityCenter />
-                      </ProtectedRoute>
-                    } 
-                  />
+                  {/* Administration (admin only) */}
                   <Route 
                     path="/administration" 
                     element={

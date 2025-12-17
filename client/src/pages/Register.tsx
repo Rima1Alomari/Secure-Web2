@@ -54,6 +54,7 @@ const Register = () => {
         // Set user data in context
         setUser({
           id: response.data.user.id,
+          userId: response.data.user.userId,
           name: response.data.user.name,
           email: response.data.user.email,
           role: userRole
@@ -212,7 +213,7 @@ const Register = () => {
               <label htmlFor="role" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Account Type / Role
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setRole('user')}
@@ -224,18 +225,6 @@ const Register = () => {
                 >
                   <FaUser className="text-2xl" />
                   <span className="text-sm font-medium">User</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('security')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                    role === 'security'
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-green-300 dark:hover:border-green-700'
-                  }`}
-                >
-                  <FaShieldAlt className="text-2xl" />
-                  <span className="text-sm font-medium">Security</span>
                 </button>
                 <button
                   type="button"

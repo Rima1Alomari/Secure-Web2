@@ -101,7 +101,7 @@ export interface AccessRule {
   name: string
   description: string
   classification: 'Normal' | 'Confidential' | 'Restricted'
-  allowedRoles: ('user' | 'admin' | 'security')[]
+  allowedRoles: ('user' | 'admin')[]
   allowedUsers?: string[] // Specific user IDs
   requiresMFA: boolean
   requiresApproval: boolean
@@ -122,6 +122,7 @@ export interface NotificationItem {
 
 export interface AdminUserMock {
   id: string
+  userId?: string // Unique user ID like #AD001, #US001, #SE001
   name: string
   email: string
   role: 'Admin' | 'User' | 'Moderator' | 'Guest'

@@ -1,9 +1,10 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 
-export type UserRole = 'user' | 'admin' | 'security'
+export type UserRole = 'user' | 'admin'
 
 interface User {
   id: string
+  userId?: string // Unique user ID like #AD001, #US001, #SE001
   name: string
   email: string
   role: UserRole

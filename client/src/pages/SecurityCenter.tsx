@@ -46,7 +46,7 @@ export default function SecurityCenter() {
   const [ruleName, setRuleName] = useState('')
   const [ruleDescription, setRuleDescription] = useState('')
   const [ruleClassification, setRuleClassification] = useState<Classification>('Normal')
-  const [ruleAllowedRoles, setRuleAllowedRoles] = useState<('user' | 'admin' | 'security')[]>([])
+  const [ruleAllowedRoles, setRuleAllowedRoles] = useState<('user' | 'admin')[]>([])
   const [ruleRequiresMFA, setRuleRequiresMFA] = useState(false)
   const [ruleRequiresApproval, setRuleRequiresApproval] = useState(false)
   const [ruleEnabled, setRuleEnabled] = useState(true)
@@ -72,7 +72,7 @@ export default function SecurityCenter() {
           name: 'Normal Classification Access',
           description: 'Standard access for Normal classification files',
           classification: 'Normal',
-          allowedRoles: ['user', 'admin', 'security'],
+          allowedRoles: ['user', 'admin'],
           requiresMFA: false,
           requiresApproval: false,
           createdAt: nowISO(),
@@ -82,9 +82,9 @@ export default function SecurityCenter() {
         {
           id: uuid(),
           name: 'Confidential Classification Access',
-          description: 'Restricted access for Confidential files - Admin and Security only',
+          description: 'Restricted access for Confidential files - Admin only',
           classification: 'Confidential',
-          allowedRoles: ['admin', 'security'],
+          allowedRoles: ['admin'],
           requiresMFA: true,
           requiresApproval: false,
           createdAt: nowISO(),
@@ -94,9 +94,9 @@ export default function SecurityCenter() {
         {
           id: uuid(),
           name: 'Restricted Classification Access',
-          description: 'Highly restricted access for Restricted files - Security only with approval',
+          description: 'Highly restricted access for Restricted files - Admin only with approval',
           classification: 'Restricted',
-          allowedRoles: ['security'],
+          allowedRoles: ['admin'],
           requiresMFA: true,
           requiresApproval: true,
           createdAt: nowISO(),
@@ -262,7 +262,7 @@ export default function SecurityCenter() {
     setRuleToDelete(null)
   }
 
-  const toggleRole = (role: 'user' | 'admin' | 'security') => {
+  const toggleRole = (role: 'user' | 'admin') => {
     if (ruleAllowedRoles.includes(role)) {
       setRuleAllowedRoles(prev => prev.filter(r => r !== role))
     } else {
@@ -406,10 +406,10 @@ export default function SecurityCenter() {
                     <h3 className="text-xl font-bold">Confidential</h3>
                   </div>
                   <p className="text-sm mb-4">
-                    Sensitive data requiring restricted access. Admin and Security roles only.
+                    Sensitive data requiring restricted access. Admin role only.
                   </p>
                   <div className="text-xs space-y-1">
-                    <div>• Admin and Security only</div>
+                    <div>• Admin only</div>
                     <div>• MFA required</div>
                     <div>• Enhanced logging</div>
                   </div>
@@ -422,10 +422,10 @@ export default function SecurityCenter() {
                     <h3 className="text-xl font-bold">Restricted</h3>
                   </div>
                   <p className="text-sm mb-4">
-                    Highly sensitive data. Security role only with approval required.
+                    Highly sensitive data. Admin role only with approval required.
                   </p>
                   <div className="text-xs space-y-1">
-                    <div>• Security role only</div>
+                    <div>• Admin role only</div>
                     <div>• MFA + Approval required</div>
                     <div>• Full audit trail</div>
                   </div>
@@ -777,7 +777,7 @@ export default function SecurityCenter() {
                 Allowed Roles *
               </label>
               <div className="space-y-2">
-                {(['user', 'admin', 'security'] as const).map((r) => (
+                {(['user', 'admin'] as const).map((r) => (
                   <label key={r} className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"

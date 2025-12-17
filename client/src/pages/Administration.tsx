@@ -103,13 +103,11 @@ const Administration = () => {
   useEffect(() => {
     const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
     if (savedUsers.length === 0) {
-      // Initialize with default users
+      // Initialize with default users (Ahmed, Ali, Mohammed)
       const defaultUsers: AdminUserMock[] = [
-        { id: uuid(), name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Jane Smith', email: 'jane@example.com', role: 'User', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Bob Johnson', email: 'bob@example.com', role: 'User', status: 'Inactive', createdAt: nowISO() },
-        { id: uuid(), name: 'Alice Williams', email: 'alice@example.com', role: 'User', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Charlie Brown', email: 'charlie@example.com', role: 'Moderator', status: 'Active', createdAt: nowISO() },
+        { id: uuid(), name: 'Ahmed', email: 'ahmed@example.com', role: 'Admin', status: 'Active', createdAt: nowISO(), userId: '#AD001' },
+        { id: uuid(), name: 'Ali', email: 'ali@example.com', role: 'User', status: 'Active', createdAt: nowISO(), userId: '#US001' },
+        { id: uuid(), name: 'Mohammed', email: 'mohammed@example.com', role: 'User', status: 'Active', createdAt: nowISO(), userId: '#US002' },
       ]
       setUsers(defaultUsers)
       setJSON(ADMIN_USERS_KEY, defaultUsers)

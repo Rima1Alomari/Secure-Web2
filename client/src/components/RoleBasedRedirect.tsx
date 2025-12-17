@@ -14,9 +14,6 @@ export default function RoleBasedRedirect() {
     case 'admin':
       redirectPath = '/administration'
       break
-    case 'security':
-      redirectPath = '/security'
-      break
     case 'user':
     default:
       redirectPath = '/dashboard'

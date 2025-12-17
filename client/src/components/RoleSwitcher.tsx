@@ -8,7 +8,7 @@ import { useUser, UserRole } from '../contexts/UserContext'
 export default function RoleSwitcher() {
   const { user, setUser, role } = useUser()
 
-  const roles: UserRole[] = ['user', 'admin', 'security']
+  const roles: UserRole[] = ['user', 'admin']
 
   const handleRoleChange = (newRole: UserRole) => {
     if (user) {

@@ -17,10 +17,21 @@ const Chat = () => {
   const [refreshKey, setRefreshKey] = useState(0)
   const [dmSearchQuery, setDmSearchQuery] = useState('')
 
-  // Get rooms
+  // Get rooms - only show rooms where the user is a member or is the owner
   const rooms = useMemo(() => {
-    return getJSON<Room[]>(ROOMS_KEY, []) || []
-  }, [refreshKey])
+    if (!user?.id) return []
+    
+    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
+    
+    // Filter rooms: user must be owner OR member
+    return allRooms.filter(room => {
+      // User is the owner
+      if (room.ownerId === user.id) return true
+      // User is in the memberIds list
+      if (room.memberIds && room.memberIds.includes(user.id)) return true
+      return false
+    })
+  }, [refreshKey, user?.id])
 
   // Get all messages
   const allMessages = useMemo(() => {
