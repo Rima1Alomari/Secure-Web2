@@ -148,7 +148,9 @@ const Calendar = () => {
       sharedWith: [],
       color: '#3B82F6',
       isOnline: false,
-      meetingLink: ''
+      meetingLink: '',
+      isRecurring: false,
+      recurrenceType: 'none'
     })
     setInvitedUsers([])
     setInvitedGroup('')
@@ -170,7 +172,9 @@ const Calendar = () => {
       sharedWith: [],
       color: '#3B82F6',
       isOnline: false,
-      meetingLink: ''
+      meetingLink: '',
+      isRecurring: false,
+      recurrenceType: 'none'
     })
     setInvitedUsers([])
     setInvitedGroup('')
@@ -350,7 +354,9 @@ const Calendar = () => {
       sharedWith: [],
       color: '#3B82F6',
       isOnline: false,
-      meetingLink: ''
+      meetingLink: '',
+      isRecurring: false,
+      recurrenceType: 'none'
     })
     setInvitedUsers([])
     setInvitedGroup('')
@@ -361,10 +367,24 @@ const Calendar = () => {
     // Only open create modal for admins
     if (isAdmin) {
       setEventType('event') // Default to event when clicking date
+      // Reset form to default state (don't preserve stale values)
       setNewEvent({
-        ...newEvent,
-        date: date.toISOString().split('T')[0]
+        title: '',
+        description: '',
+        date: date.toISOString().split('T')[0],
+        from: '09:00',
+        to: '10:00',
+        location: '',
+        showAs: 'busy',
+        sharedWith: [],
+        color: '#3B82F6',
+        isOnline: false,
+        meetingLink: '',
+        isRecurring: false,
+        recurrenceType: 'none'
       })
+      setInvitedUsers([])
+      setInvitedGroup('')
       setShowCreateModal(true)
     }
   }
@@ -890,7 +910,9 @@ const Calendar = () => {
                 sharedWith: [],
                 color: '#3B82F6',
                 isOnline: false,
-                meetingLink: ''
+                meetingLink: '',
+                isRecurring: false,
+                recurrenceType: 'none'
               })
               setInvitedUsers([])
               setInvitedGroup('')
