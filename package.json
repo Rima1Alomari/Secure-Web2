@@ -4,7 +4,7 @@
   "description": "Unified secure collaboration platform with quantum-resistant encryption, AI threat detection, and zero-trust architecture",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "npx concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
