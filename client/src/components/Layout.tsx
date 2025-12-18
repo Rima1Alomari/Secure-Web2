@@ -1,11 +1,9 @@
 import { ReactNode, useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
-  FaVideo, 
   FaFile, 
   FaSignOutAlt, 
   FaShieldAlt, 
-  FaLock,
   FaHome,
   FaComments,
   FaCalendarAlt,
@@ -16,8 +14,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaMoon,
-  FaSun,
-  FaInfoCircle
+  FaSun
 } from 'react-icons/fa'
 import { removeToken } from '../utils/auth'
 import ThemeToggle from './ThemeToggle'
@@ -41,17 +38,17 @@ export default function Layout({ children, onLogout }: LayoutProps) {
     return document.documentElement.classList.contains('dark')
   })
   
-  // Get uploaded logo from settings
+  // Get uploaded logo from settings, fallback to default Aramco Digital logo
   const [logoUrl, setLogoUrl] = useState<string | null>(() => {
     const settings = getJSON<{ logoUrl?: string }>('admin-theme-settings', null)
-    return settings?.logoUrl || null
+    return settings?.logoUrl || '/aramco-digital-logo.jpeg'
   })
   
   // Listen for logo updates
   useEffect(() => {
     const handleStorageChange = () => {
       const settings = getJSON<{ logoUrl?: string }>('admin-theme-settings', null)
-      setLogoUrl(settings?.logoUrl || null)
+      setLogoUrl(settings?.logoUrl || '/aramco-digital-logo.jpeg')
     }
     
     // Listen for custom event (when logo is updated in Administration)
@@ -102,47 +99,14 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   }, [role])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-green-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 transition-colors flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors flex">
       {/* Left Sidebar */}
-      <aside className={`hidden lg:flex flex-col bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-r border-blue-200/50 dark:border-blue-800/50 shadow-xl shadow-blue-500/5 sticky top-0 h-screen transition-all duration-300 ${
+      <aside className={`hidden lg:flex flex-col bg-white dark:bg-gray-800 border-r border-gray-300 dark:border-gray-700 shadow-sm sticky top-0 h-screen transition-all duration-300 ${
         isSidebarCollapsed ? 'w-20' : 'w-64'
       }`}>
-        {/* Logo & Collapse Toggle */}
-        <div className="p-6 border-b border-blue-200/50 dark:border-blue-800/50">
-          <div className="flex items-center gap-3 justify-between">
-            {!isSidebarCollapsed && (
-              <div className="flex items-center gap-3">
-                {logoUrl ? (
-                  <img 
-                    src={logoUrl} 
-                    alt="Logo" 
-                    className="w-12 h-12 rounded-xl object-contain"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
-                    <FaShieldAlt className="text-white text-xl" />
-                  </div>
-                )}
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
-                  Secure Web
-                </h1>
-              </div>
-            )}
-            {isSidebarCollapsed && (
-              <>
-                {logoUrl ? (
-                  <img 
-                    src={logoUrl} 
-                    alt="Logo" 
-                    className="w-12 h-12 rounded-xl object-contain mx-auto"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20 mx-auto">
-                    <FaShieldAlt className="text-white text-xl" />
-                  </div>
-                )}
-              </>
-            )}
+        {/* Collapse Toggle */}
+        <div className="p-6 border-b border-gray-300 dark:border-gray-700">
+          <div className="flex items-center justify-end">
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all duration-200 hover:text-gray-900 dark:hover:text-white"
@@ -166,9 +130,9 @@ export default function Layout({ children, onLogout }: LayoutProps) {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`group relative w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 flex items-center gap-3 ${
+                className={`group relative w-full px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-200 flex items-center gap-3 ${
                   active
-                    ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white shadow-md'
+                    ? 'bg-slate-700 dark:bg-slate-600 text-white'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
                 } ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title={isSidebarCollapsed ? item.label : ''}
@@ -187,7 +151,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </nav>
 
         {/* Bottom Actions */}
-        <div className="p-4 border-t border-blue-200/50 dark:border-blue-800/50 space-y-2">
+        <div className="p-4 border-t border-gray-300 dark:border-gray-700 space-y-2">
           {isSidebarCollapsed ? (
             <button
               onClick={() => {
@@ -201,7 +165,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
                   localStorage.setItem('theme', 'light')
                 }
               }}
-              className="w-full px-2 py-2.5 rounded-lg bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 hover:from-blue-100 hover:to-green-100 dark:hover:from-blue-900/30 dark:hover:to-green-900/30 transition-all duration-300 flex items-center justify-center text-gray-700 dark:text-gray-300"
+              className="w-full px-2 py-2.5 rounded-md bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 flex items-center justify-center text-gray-700 dark:text-gray-300"
               title="Toggle theme"
             >
               {isDark ? (
@@ -215,7 +179,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
           )}
           <button
             onClick={handleLogout}
-            className={`w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+            className={`w-full px-4 py-2.5 bg-red-700 hover:bg-red-800 text-white rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
               isSidebarCollapsed ? 'px-2' : ''
             }`}
             title={isSidebarCollapsed ? 'Logout' : ''}
@@ -229,7 +193,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navigation Bar (Mobile & Desktop Header) */}
-        <nav className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border-b border-blue-200/50 dark:border-blue-800/50 sticky top-0 z-50 shadow-lg shadow-blue-500/5">
+        <nav className="bg-white dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 sticky top-0 z-50 shadow-sm">
           <div className="px-2 sm:px-4 lg:px-8">
             {/* Mobile Layout */}
             <div className="lg:hidden space-y-2 py-2">
@@ -240,27 +204,28 @@ export default function Layout({ children, onLogout }: LayoutProps) {
                     <img 
                       src={logoUrl} 
                       alt="Logo" 
-                      className="w-9 h-9 rounded-xl object-contain"
+                      className="w-32 h-32 object-contain logo-no-bg"
+                      style={{ 
+                        background: 'transparent',
+                        imageRendering: 'crisp-edges'
+                      } as React.CSSProperties}
                     />
                   ) : (
-                    <div className="w-9 h-9 bg-gradient-to-br from-blue-600 via-blue-500 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 ring-2 ring-blue-500/20">
+                    <div className="w-32 h-32 bg-slate-700 dark:bg-slate-600 rounded-lg flex items-center justify-center shadow-sm">
                       <FaShieldAlt className="text-white text-base" />
                     </div>
                   )}
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-400 dark:to-green-400 bg-clip-text text-transparent tracking-tight">
-                    Secure Web
-                  </h1>
                 </div>
 
                 {/* Right Side Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2 py-1 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border border-blue-200/50 dark:border-blue-800/50 rounded-lg">
-                    Role: <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{role}</span>
+                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
+                    Role: <span className="text-slate-700 dark:text-slate-300 font-bold capitalize">{role}</span>
                   </div>
                   <NotificationsCenter />
                   <button
                     onClick={handleLogout}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-md text-xs font-medium transition-colors duration-200 flex items-center gap-1.5"
                   >
                     <FaSignOutAlt className="text-xs" />
                   </button>
@@ -274,9 +239,25 @@ export default function Layout({ children, onLogout }: LayoutProps) {
             </div>
 
             {/* Desktop Layout */}
-            <div className="hidden lg:flex justify-between items-center gap-4 h-16">
-              {/* Desktop Header (Empty space for logo) */}
-              <div className="flex-shrink-0"></div>
+            <div className="hidden lg:flex justify-between items-center gap-4 h-32">
+              {/* Desktop Logo */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {logoUrl ? (
+                  <img 
+                    src={logoUrl} 
+                    alt="Logo" 
+                    className="w-40 h-40 object-contain logo-no-bg"
+                    style={{ 
+                      background: 'transparent',
+                      imageRendering: 'crisp-edges'
+                    } as React.CSSProperties}
+                  />
+                ) : (
+                  <div className="w-40 h-40 bg-slate-700 dark:bg-slate-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <FaShieldAlt className="text-white text-base" />
+                  </div>
+                )}
+              </div>
 
               {/* Global Search - Center */}
               <div className="flex-1 max-w-2xl">
@@ -285,8 +266,8 @@ export default function Layout({ children, onLogout }: LayoutProps) {
 
               {/* Right Side Actions */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2 py-1 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg border border-blue-200/50 dark:border-blue-800/50 rounded-lg">
-                  Role: <span className="text-blue-600 dark:text-blue-400 font-bold capitalize">{role}</span>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 px-2 py-1 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">
+                  Role: <span className="text-slate-700 dark:text-slate-300 font-bold capitalize">{role}</span>
                 </div>
                 <NotificationsCenter />
               </div>
@@ -301,10 +282,10 @@ export default function Layout({ children, onLogout }: LayoutProps) {
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap ${
+                    className={`px-3 py-2 rounded-md text-xs font-medium transition-colors duration-200 flex items-center gap-1.5 whitespace-nowrap ${
                       active
-                        ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white shadow-md'
-                        : 'bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                        ? 'bg-slate-700 dark:bg-slate-600 text-white'
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
                     }`}
                   >
                     <Icon className="text-sm" />

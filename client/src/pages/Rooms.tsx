@@ -6,13 +6,14 @@ import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
 import { ROOMS_KEY, CHAT_MESSAGES_KEY, ADMIN_USERS_KEY } from '../data/keys'
 import { Room, ChatMessage, AdminUserMock } from '../types/models'
 import { useUser } from '../contexts/UserContext'
+import { auditHelpers } from '../utils/audit'
 
 const Rooms = () => {
   const navigate = useNavigate()
   const { role } = useUser()
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [newRoom, setNewRoom] = useState({ name: '', description: '', isPrivate: false })
+  const [newRoom, setNewRoom] = useState({ name: '', description: '' })
   const [roomClassification, setRoomClassification] = useState<'Normal' | 'Confidential' | 'Restricted'>('Normal')
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedRoomMenu, setSelectedRoomMenu] = useState<string | null>(null)
@@ -92,7 +93,7 @@ const Rooms = () => {
       id: uuid(),
       name: newRoom.name,
       description: newRoom.description,
-      isPrivate: newRoom.isPrivate,
+      isPrivate: false,
       members: 1,
       maxMembers: 50,
       createdAt: nowISO(),
@@ -104,10 +105,15 @@ const Rooms = () => {
 
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     setJSON(ROOMS_KEY, [...allRooms, room])
-    setNewRoom({ name: '', description: '', isPrivate: false })
+    
+    // Log audit event
+    auditHelpers.logRoomCreate(room.name, room.id)
+    
+    setNewRoom({ name: '', description: '' })
     setRoomClassification('Normal')
     setShowCreateModal(false)
     setRefreshKey(prev => prev + 1)
+    setToast({ message: `Room "${room.name}" created successfully`, type: 'success' })
   }
 
   const handleRoomClick = (roomId: string, event?: React.MouseEvent) => {
@@ -723,7 +729,7 @@ const Rooms = () => {
           isOpen={showCreateModal}
           onClose={() => {
             setShowCreateModal(false)
-            setNewRoom({ name: '', description: '', isPrivate: false })
+            setNewRoom({ name: '', description: '' })
             setRoomClassification('Normal')
           }}
           title="Create New Room"
@@ -754,18 +760,6 @@ const Rooms = () => {
                 rows={3}
               />
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="private"
-                checked={newRoom.isPrivate}
-                onChange={(e) => setNewRoom({ ...newRoom, isPrivate: e.target.checked })}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="private" className="text-sm text-gray-700 dark:text-gray-300">
-                Private Room
-              </label>
-            </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Data Classification Level *
@@ -787,7 +781,7 @@ const Rooms = () => {
               <button
                 onClick={() => {
                   setShowCreateModal(false)
-                  setNewRoom({ name: '', description: '', isPrivate: false })
+                  setNewRoom({ name: '', description: '' })
                   setRoomClassification('Normal')
                 }}
                 className="btn-secondary flex-1"
