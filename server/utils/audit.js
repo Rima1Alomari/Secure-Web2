@@ -48,13 +48,24 @@ export const logAuditEvent = async (eventType, userId, details, metadata = {}) =
   try {
     const mongoose = await import('mongoose')
     if (mongoose.default.connection.readyState === 1) {
-      const log = new AuditLog(auditEntry)
+      // Convert userId to ObjectId if it's a valid ObjectId string
+      const processedEntry = { ...auditEntry }
+      if (typeof processedEntry.userId === 'string' && mongoose.default.Types.ObjectId.isValid(processedEntry.userId)) {
+        try {
+          processedEntry.userId = new mongoose.default.Types.ObjectId(processedEntry.userId)
+        } catch {
+          // Keep as string if conversion fails
+        }
+      }
+      
+      const log = new AuditLog(processedEntry)
       await log.save()
     } else {
       console.warn('MongoDB not connected, skipping audit log')
     }
   } catch (error) {
     console.error('MongoDB audit log error (non-fatal):', error.message)
+    // Don't throw - this is non-fatal
   }
   
   // Save to blockchain if enabled

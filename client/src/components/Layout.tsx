@@ -14,7 +14,8 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaMoon,
-  FaSun
+  FaSun,
+  FaUser
 } from 'react-icons/fa'
 import { removeToken } from '../utils/auth'
 import ThemeToggle from './ThemeToggle'
@@ -22,7 +23,7 @@ import FloatingAIAssistant from './FloatingAIAssistant'
 import GlobalSearch from './GlobalSearch'
 import NotificationsCenter from './NotificationsCenter'
 import { useUser, UserRole } from '../contexts/UserContext'
-import { getJSON } from '../data/storage'
+import { getJSON, clearUserData } from '../data/storage'
 
 interface LayoutProps {
   children: ReactNode
@@ -32,7 +33,7 @@ interface LayoutProps {
 export default function Layout({ children, onLogout }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { role, setUser } = useUser()
+  const { role, setUser, user } = useUser()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isDark, setIsDark] = useState(() => {
     return document.documentElement.classList.contains('dark')
@@ -63,6 +64,11 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   }, [])
 
   const handleLogout = () => {
+    // Clear user-specific data from localStorage
+    if (user?.id) {
+      clearUserData(user.id)
+    }
+    
     // Remove token and user data
     removeToken()
     setUser(null)
@@ -88,6 +94,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
     { path: '/calendar', icon: FaCalendarAlt, label: 'Calendar', roles: ['user', 'admin'] as UserRole[] },
     { path: '/files', icon: FaFile, label: 'Files', roles: ['user', 'admin'] as UserRole[] },
     { path: '/recent', icon: FaClock, label: 'Recent', roles: ['user', 'admin'] as UserRole[] },
+    { path: '/profile', icon: FaUser, label: 'Profile', roles: ['user', 'admin', 'security'] as UserRole[] },
     { path: '/trash', icon: FaTrash, label: 'Trash', roles: ['admin'] as UserRole[] },
     { path: '/security', icon: FaShieldAlt, label: 'Security', roles: ['admin', 'security'] as UserRole[] },
     { path: '/administration', icon: FaCog, label: 'Admin', roles: ['admin'] as UserRole[] },

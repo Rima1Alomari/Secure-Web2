@@ -7,8 +7,8 @@ import { useUser } from '../contexts/UserContext'
 export default function RoleBasedRedirect() {
   const { role } = useUser()
 
-  // Determine redirect path based on role
-  let redirectPath = '/dashboard' // Default path
+  // Determine redirect path based on role - each role goes to their own page
+  let redirectPath = '/rooms' // Default for user
 
   switch (role) {
     case 'admin':
@@ -19,7 +19,7 @@ export default function RoleBasedRedirect() {
       break
     case 'user':
     default:
-      redirectPath = '/dashboard'
+      redirectPath = '/rooms'
       break
   }
 

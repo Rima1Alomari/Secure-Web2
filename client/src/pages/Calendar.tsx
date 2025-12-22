@@ -90,10 +90,17 @@ const Calendar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Load events from localStorage
+  // Load events from localStorage (filtered by user)
   useEffect(() => {
     const savedEvents = getJSON<Event[]>(EVENTS_KEY, []) || []
-    const eventsWithDates = savedEvents.map(e => ({
+    // Filter events: show events created by user OR events where user is invited
+    const userEvents = savedEvents.filter(e => 
+      e.creatorId === user?.id || 
+      e.organizerId === user?.id ||
+      (e.attendees && e.attendees.includes(user?.id || '')) ||
+      (e.isInvite && e.inviteStatus !== 'declined')
+    )
+    const eventsWithDates = userEvents.map(e => ({
       ...e,
       date: typeof e.date === 'string' ? new Date(e.date) : e.date
     }))

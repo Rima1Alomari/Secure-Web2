@@ -7,6 +7,10 @@ interface User {
   name: string
   email: string
   role: UserRole
+  jobTitle?: string
+  department?: string
+  phone?: string
+  bio?: string
 }
 
 interface UserContextType {

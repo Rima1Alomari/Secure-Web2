@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { FaPaperPlane, FaUser, FaComments, FaUsers, FaLock, FaUnlock, FaSearch, FaPlus, FaTimes } from 'react-icons/fa'
-import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
+import { FaPaperPlane, FaUser, FaComments, FaUsers, FaLock, FaUnlock, FaSearch, FaPlus, FaTimes, FaLightbulb, FaFileAlt, FaSpinner, FaTrash } from 'react-icons/fa'
+import axios from 'axios'
+import { getJSON, setJSON, nowISO } from '../data/storage'
 import { ROOMS_KEY, CHAT_MESSAGES_KEY, ADMIN_USERS_KEY } from '../data/keys'
 import { Room, ChatMessage, DirectChat, AdminUserMock } from '../types/models'
 import { useUser } from '../contexts/UserContext'
+import { getToken } from '../utils/auth'
+
+const API_URL = (import.meta as any).env.VITE_API_URL || '/api'
 
 type ChatType = 'room' | 'direct'
 type SelectedChat = { type: ChatType; id: string; name: string } | null
@@ -19,20 +23,69 @@ const Chat = () => {
   const [messageSearchQuery, setMessageSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([])
   const [showSearchResults, setShowSearchResults] = useState(false)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [useBackend, setUseBackend] = useState(true)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [showAIFeatures, setShowAIFeatures] = useState(false)
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [showSummary, setShowSummary] = useState(false)
+  const [conversationSummary, setConversationSummary] = useState('')
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false)
 
   // Get rooms
   const rooms = useMemo(() => {
     return getJSON<Room[]>(ROOMS_KEY, []) || []
   }, [refreshKey])
 
-  // Get all messages
+  // Get all messages (not user-scoped, as chat messages are shared)
   const allMessages = useMemo(() => {
-    return getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
+    try {
+      const baseKey = CHAT_MESSAGES_KEY
+      const stored = localStorage.getItem(baseKey)
+      if (stored) {
+        return JSON.parse(stored) as ChatMessage[]
+      }
+    } catch (error) {
+      console.error('Error reading chat messages from localStorage:', error)
+    }
+    return []
   }, [refreshKey])
 
-  // Get all users for search
-  const allUsers = useMemo(() => {
-    return getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+  // Get all users for search - fetch from backend API
+  const [allUsers, setAllUsers] = useState<AdminUserMock[]>([])
+  
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/auth/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && Array.isArray(response.data)) {
+          // Map backend users to AdminUserMock format
+          const mappedUsers: AdminUserMock[] = response.data.map((u: any) => ({
+            id: u.id || u._id,
+            name: u.name,
+            email: u.email,
+            role: u.role === 'admin' ? 'Admin' : u.role === 'security' ? 'Moderator' : 'User',
+            status: 'Active',
+            createdAt: u.createdAt || nowISO()
+          }))
+          setAllUsers(mappedUsers)
+          // Also save to localStorage as backup
+          setJSON(ADMIN_USERS_KEY, mappedUsers)
+        }
+      } catch (error) {
+        console.error('Error loading users for chat:', error)
+        // Fallback to localStorage
+        const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+        setAllUsers(savedUsers)
+      }
+    }
+    
+    loadUsers()
   }, [])
 
   // Get direct chats (simple implementation)
@@ -119,35 +172,249 @@ const Chat = () => {
     setDmSearchQuery('')
   }
 
+  const handleDeleteChat = async () => {
+    if (!selectedChat || !user || user.role !== 'admin') {
+      console.error('Only admins can delete conversations')
+      alert('Only admins can delete conversations')
+      return
+    }
+
+    // Store chat info before clearing
+    const chatToDelete = { ...selectedChat }
+    const chatType = chatToDelete.type
+    const chatId = chatToDelete.id
+
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      
+      if (chatType === 'room') {
+        // Delete room messages
+        const response = await axios.delete(`${API_URL}/chat/room/${chatId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        console.log('✅ Room messages deleted:', response.data)
+      } else {
+        // Delete direct messages - extract other user ID
+        const chatIdParts = chatId.split('-')
+        const otherUserId = chatIdParts[0] === user.id ? chatIdParts[1] : chatIdParts[0]
+        
+        if (!otherUserId) {
+          console.error('Cannot determine other user ID from chat ID:', chatId)
+          alert('Cannot determine recipient ID')
+          return
+        }
+        
+        const response = await axios.delete(`${API_URL}/chat/direct/${otherUserId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        console.log('✅ Direct messages deleted:', response.data)
+      }
+
+      // Clear from localStorage BEFORE clearing UI state
+      try {
+        const baseKey = CHAT_MESSAGES_KEY
+        const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+        const filteredMessages = existingMessages.filter((msg: ChatMessage) => {
+          if (chatType === 'room') {
+            return msg.roomId !== chatId
+          } else {
+            const chatIdParts = chatId.split('-')
+            return !(
+              (!msg.roomId &&
+               ((msg.senderId === chatIdParts[0] && msg.recipientId === chatIdParts[1]) ||
+                (msg.senderId === chatIdParts[1] && msg.recipientId === chatIdParts[0])))
+            )
+          }
+        })
+        localStorage.setItem(baseKey, JSON.stringify(filteredMessages))
+        console.log('✅ Messages cleared from localStorage')
+      } catch (error) {
+        console.error('Error clearing messages from localStorage:', error)
+      }
+
+      // Clear messages from UI and close chat
+      setMessages([])
+      setSelectedChat(null)
+      setRefreshKey(prev => prev + 1)
+      
+      console.log('✅ Conversation deleted successfully')
+    } catch (error: any) {
+      console.error('❌ Error deleting conversation:', error)
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to delete conversation'
+      alert(`Error: ${errorMessage}`)
+    }
+  }
+
+  // Fetch messages from API
+  const fetchMessages = async () => {
+    if (!selectedChat || !user) return
+
+    // Don't show loading spinner during polling (only on initial load)
+    const isInitialLoad = messages.length === 0
+    if (isInitialLoad) {
+      setIsLoadingMessages(true)
+    }
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      let response
+
+      if (selectedChat.type === 'room') {
+        response = await axios.get(`${API_URL}/chat/room/${selectedChat.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      } else {
+        // Direct chat: extract other user ID from chat ID
+        const chatId = selectedChat.id.split('-')
+        const otherUserId = chatId[0] === user.id ? chatId[1] : chatId[0]
+        
+        if (!otherUserId) {
+          console.error('Cannot determine other user ID from chat ID:', selectedChat.id)
+          if (isInitialLoad) setIsLoadingMessages(false)
+          return
+        }
+        
+        console.log(`Fetching direct messages with user: ${otherUserId} (current user: ${user.id})`)
+        response = await axios.get(`${API_URL}/chat/direct/${otherUserId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        console.log(`Received ${response.data.length} messages from API`)
+      }
+
+      const apiMessages = response.data.map((msg: any) => ({
+        ...msg,
+        timestamp: typeof msg.timestamp === 'string' ? msg.timestamp : new Date(msg.timestamp).toISOString(),
+        isOwn: msg.isOwn !== undefined ? msg.isOwn : (msg.senderId === user.id),
+        sender: msg.sender || 'Unknown', // Ensure sender name is always present
+        senderId: msg.senderId || msg.sender?._id || msg.sender
+      }))
+
+      // Validate all messages have required fields
+      const validMessages = apiMessages.filter((msg: any) => {
+        if (!msg.id || !msg.message) {
+          console.warn('⚠️ Invalid message format:', msg)
+          return false
+        }
+        return true
+      })
+
+      console.log(`✅ Processed ${validMessages.length} valid messages (${apiMessages.length - validMessages.length} invalid)`)
+
+      // Only update if messages actually changed (to avoid unnecessary re-renders)
+      setMessages(prev => {
+        const prevIds = new Set(prev.map(m => m.id))
+        const newIds = new Set(validMessages.map((m: any) => m.id))
+        
+        // Check if there are new messages or changes
+        const hasNewMessages = validMessages.some((m: any) => !prevIds.has(m.id))
+        const hasRemovedMessages = prev.some(m => !newIds.has(m.id))
+        const hasChanged = prev.length !== validMessages.length
+        
+        // Also check if any message content changed
+        const hasContentChanges = validMessages.some((newMsg: any) => {
+          const oldMsg = prev.find(m => m.id === newMsg.id)
+          return oldMsg && (oldMsg.message !== newMsg.message || oldMsg.sender !== newMsg.sender)
+        })
+        
+        if (hasNewMessages || hasRemovedMessages || hasChanged || hasContentChanges) {
+          console.log(`🔄 Updating messages: ${prev.length} -> ${validMessages.length}`)
+          return validMessages
+        }
+        return prev
+      })
+      
+      setUseBackend(true)
+
+      // Also save to localStorage as backup (but don't use user-scoped key for chat messages)
+      // Chat messages are shared and shouldn't be user-scoped
+      try {
+        const baseKey = CHAT_MESSAGES_KEY
+        const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+        const existingIds = new Set(existingMessages.map((m: ChatMessage) => m.id))
+        const newMessages = apiMessages.filter((m: ChatMessage) => !existingIds.has(m.id))
+        if (newMessages.length > 0 || apiMessages.length > 0) {
+          // Merge and deduplicate
+          const merged = [...existingMessages, ...newMessages]
+          const uniqueMessages = Array.from(
+            new Map(merged.map((m: ChatMessage) => [m.id, m])).values()
+          )
+          localStorage.setItem(baseKey, JSON.stringify(uniqueMessages))
+        }
+      } catch (error) {
+        console.error('Error saving messages to localStorage:', error)
+      }
+    } catch (error: any) {
+      console.error('Error fetching messages from API:', error)
+      // Fallback to localStorage (not user-scoped)
+      setUseBackend(false)
+      try {
+        const baseKey = CHAT_MESSAGES_KEY
+        const stored = localStorage.getItem(baseKey)
+        const fallbackMessages = stored ? JSON.parse(stored) as ChatMessage[] : []
+        
+        const chatMessages = fallbackMessages
+          .filter((msg: ChatMessage) => {
+            if (selectedChat.type === 'room') {
+              return msg.roomId === selectedChat.id
+            } else {
+              const chatId = selectedChat.id.split('-')
+              return (
+                !msg.roomId &&
+                ((msg.senderId === chatId[0] && msg.recipientId === chatId[1]) ||
+                 (msg.senderId === chatId[1] && msg.recipientId === chatId[0]))
+              )
+            }
+          })
+          .sort((a: ChatMessage, b: ChatMessage) => {
+            const timeA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp.getTime()
+            const timeB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp.getTime()
+            return timeA - timeB
+          })
+        setMessages(chatMessages)
+      } catch (parseError) {
+        console.error('Error parsing fallback messages:', parseError)
+        setMessages([])
+      }
+    } finally {
+      if (isInitialLoad) {
+        setIsLoadingMessages(false)
+      }
+    }
+  }
+
   // Load messages for selected chat
   useEffect(() => {
     if (!selectedChat) {
       setMessages([])
+      // Clear polling interval
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
       return
     }
 
-    const chatMessages = allMessages
-      .filter(msg => {
-        if (selectedChat.type === 'room') {
-          return msg.roomId === selectedChat.id
-        } else {
-          // Direct chat: message is between current user and the other user
-          const chatId = selectedChat.id.split('-')
-          return (
-            !msg.roomId &&
-            ((msg.senderId === chatId[0] && msg.recipientId === chatId[1]) ||
-             (msg.senderId === chatId[1] && msg.recipientId === chatId[0]))
-          )
-        }
-      })
-      .sort((a, b) => {
-        const timeA = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : a.timestamp.getTime()
-        const timeB = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : b.timestamp.getTime()
-        return timeA - timeB
-      })
+    // Fetch messages immediately
+    fetchMessages()
 
-    setMessages(chatMessages)
-  }, [selectedChat, allMessages])
+    // Set up polling for new messages (every 2 seconds)
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+    }
+    pollingIntervalRef.current = setInterval(() => {
+      // Always fetch messages when backend is available, regardless of useBackend flag
+      fetchMessages().catch(err => {
+        console.error('Error in polling fetchMessages:', err)
+      })
+    }, 2000)
+
+    // Cleanup on unmount or chat change
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [selectedChat, user])
 
   // Message search functionality
   useEffect(() => {
@@ -171,32 +438,147 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || !user) return
 
-    const message: ChatMessage = {
-      id: uuid(),
+    const messageText = newMessage.trim()
+    setNewMessage('')
+
+    // Optimistically add message to UI
+    const optimisticMessage: ChatMessage = {
+      id: `temp-${Date.now()}`,
       sender: user.name || 'You',
       senderId: user.id,
-      message: newMessage,
+      message: messageText,
       timestamp: nowISO(),
       isOwn: true,
       read: false,
     }
 
     if (selectedChat.type === 'room') {
-      message.roomId = selectedChat.id
+      optimisticMessage.roomId = selectedChat.id
     } else {
-      // Direct chat: set recipient to the other user
       const chatId = selectedChat.id.split('-')
-      message.recipientId = chatId[0] === user.id ? chatId[1] : chatId[0]
+      optimisticMessage.recipientId = chatId[0] === user.id ? chatId[1] : chatId[0]
     }
 
-    const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
-    setJSON(CHAT_MESSAGES_KEY, [...allMessages, message])
-    setMessages([...messages, message])
-    setNewMessage('')
-    setRefreshKey(prev => prev + 1)
+    // Add optimistic message immediately
+    setMessages(prev => [...prev, optimisticMessage])
+
+    // Try to send via API
+    if (useBackend) {
+      try {
+        const token = getToken() || 'mock-token-for-testing'
+        const payload: any = {
+          message: messageText
+        }
+
+        if (selectedChat.type === 'room') {
+          payload.roomId = selectedChat.id
+        } else {
+          const chatId = selectedChat.id.split('-')
+          const otherUserId = chatId[0] === user.id ? chatId[1] : chatId[0]
+          
+          if (!otherUserId) {
+            console.error('Cannot determine recipient ID from chat ID:', selectedChat.id)
+            throw new Error('Invalid chat ID')
+          }
+          
+          payload.recipientId = otherUserId
+          console.log(`📤 Sending message to user: ${otherUserId} (from: ${user.id})`)
+        }
+
+        console.log(`📤 Sending message via API:`, payload)
+        const response = await axios.post(`${API_URL}/chat/send`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        console.log(`✅ Message sent successfully:`, response.data)
+
+        // Replace optimistic message with real one from server
+        const realMessage: ChatMessage = {
+          ...response.data,
+          timestamp: typeof response.data.timestamp === 'string' 
+            ? response.data.timestamp 
+            : new Date(response.data.timestamp).toISOString(),
+          isOwn: true,
+          sender: response.data.sender || user.name || 'You',
+          senderId: response.data.senderId || user.id
+        }
+        
+        // Replace the optimistic message with the real one
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.id !== optimisticMessage.id)
+          return [...filtered, realMessage]
+        })
+
+        // Save to localStorage as backup
+        try {
+          const baseKey = CHAT_MESSAGES_KEY
+          const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+          const exists = existingMessages.some((m: ChatMessage) => m.id === realMessage.id)
+          if (!exists) {
+            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, realMessage]))
+          }
+        } catch (error) {
+          console.error('Error saving message to localStorage:', error)
+        }
+
+        // Force refresh messages after a short delay to ensure both users see the message
+        setTimeout(() => {
+          fetchMessages().catch(err => {
+            console.error('Error refreshing messages after send:', err)
+          })
+        }, 1000)
+
+        // Save to localStorage as backup (not user-scoped)
+        try {
+          const baseKey = CHAT_MESSAGES_KEY
+          const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+          const newMessage = {
+            ...response.data,
+            timestamp: typeof response.data.timestamp === 'string' 
+              ? response.data.timestamp 
+              : new Date(response.data.timestamp).toISOString()
+          }
+          // Check if message already exists
+          const exists = existingMessages.some((m: ChatMessage) => m.id === newMessage.id)
+          if (!exists) {
+            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, newMessage]))
+          }
+        } catch (error) {
+          console.error('Error saving message to localStorage:', error)
+        }
+        setRefreshKey(prev => prev + 1)
+      } catch (error: any) {
+        console.error('Error sending message via API:', error)
+        // Fallback to localStorage only (not user-scoped)
+        setUseBackend(false)
+        try {
+          const baseKey = CHAT_MESSAGES_KEY
+          const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+          const exists = existingMessages.some((m: ChatMessage) => m.id === optimisticMessage.id)
+          if (!exists) {
+            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, optimisticMessage]))
+          }
+        } catch (error) {
+          console.error('Error saving message to localStorage:', error)
+        }
+        setRefreshKey(prev => prev + 1)
+      }
+    } else {
+      // Use localStorage only (not user-scoped)
+      try {
+        const baseKey = CHAT_MESSAGES_KEY
+        const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
+        const exists = existingMessages.some((m: ChatMessage) => m.id === optimisticMessage.id)
+        if (!exists) {
+          localStorage.setItem(baseKey, JSON.stringify([...existingMessages, optimisticMessage]))
+        }
+      } catch (error) {
+        console.error('Error saving message to localStorage:', error)
+      }
+      setRefreshKey(prev => prev + 1)
+    }
   }
 
   const formatTime = (timestamp: string | Date) => {
@@ -421,17 +803,32 @@ const Chat = () => {
               <>
                 {/* Chat Header */}
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center gap-3 mb-3">
-                    {selectedChat.type === 'room' ? (
-                      <FaUsers className="text-blue-600 dark:text-blue-400" />
-                    ) : (
-                      <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
-                        <FaUser className="text-white text-sm" />
-                      </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      {selectedChat.type === 'room' ? (
+                        <FaUsers className="text-blue-600 dark:text-blue-400" />
+                      ) : (
+                        <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                          <FaUser className="text-white text-sm" />
+                        </div>
+                      )}
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                        {selectedChat.name}
+                      </h2>
+                    </div>
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete this conversation? This action cannot be undone.\n\nهل أنت متأكد من حذف هذه المحادثة؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+                            handleDeleteChat()
+                          }
+                        }}
+                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Delete Conversation (Admin Only)"
+                      >
+                        <FaTrash className="text-sm" />
+                      </button>
                     )}
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                      {selectedChat.name}
-                    </h2>
                   </div>
                   
                   {/* Message Search */}
@@ -466,7 +863,12 @@ const Chat = () => {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                  {messages.length === 0 ? (
+                  {isLoadingMessages ? (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                      <p>Loading messages...</p>
+                    </div>
+                  ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
                       <FaComments className="text-4xl mb-3 opacity-50" />
                       <p>No messages yet. Start the conversation!</p>
@@ -485,12 +887,25 @@ const Chat = () => {
                             isSearchMatch ? 'bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2 -m-2' : ''
                           }`}
                         >
-                          <div className="flex-shrink-0 w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center">
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                            msg.isOwn 
+                              ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500' 
+                              : 'bg-gray-400 dark:bg-gray-600'
+                          }`}>
                             <FaUser className="text-white text-sm" />
                           </div>
                           <div className={`flex-1 ${msg.isOwn ? 'text-right' : ''}`}>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-semibold text-gray-900 dark:text-white">{msg.sender}</span>
+                            <div className={`flex items-center gap-2 mb-1 ${msg.isOwn ? 'justify-end' : 'justify-start'}`}>
+                              {!msg.isOwn && (
+                                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium">
+                                  من: {msg.sender}
+                                </span>
+                              )}
+                              {msg.isOwn && (
+                                <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-medium">
+                                  أنت
+                                </span>
+                              )}
                               <span className="text-xs text-gray-500 dark:text-gray-400">{formatTime(msg.timestamp)}</span>
                             </div>
                             <div
@@ -519,8 +934,129 @@ const Chat = () => {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {/* AI Features */}
+                {showAIFeatures && (
+                  <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FaLightbulb className="text-yellow-500 text-sm" />
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">AI Features</span>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={async () => {
+                          if (messages.length === 0) return
+                          const lastMessage = messages[messages.length - 1]
+                          if (lastMessage.isOwn) return
+                          
+                          setIsLoadingSuggestions(true)
+                          try {
+                            const token = getToken() || 'mock-token-for-testing'
+                            const response = await axios.post(`${API_URL}/chat/ai-suggestions`, {
+                              message: lastMessage.message,
+                              context: selectedChat.type === 'room' ? 'Room chat' : 'Direct message'
+                            }, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            })
+                            setAiSuggestions(response.data.suggestions || [])
+                          } catch (error) {
+                            console.error('Error getting AI suggestions:', error)
+                          } finally {
+                            setIsLoadingSuggestions(false)
+                          }
+                        }}
+                        disabled={messages.length === 0 || messages[messages.length - 1]?.isOwn || isLoadingSuggestions}
+                        className="text-xs px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        {isLoadingSuggestions ? <FaSpinner className="animate-spin" /> : <FaLightbulb />}
+                        Reply Suggestions
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (messages.length === 0) return
+                          setIsLoadingSummary(true)
+                          try {
+                            const token = getToken() || 'mock-token-for-testing'
+                            const response = await axios.post(`${API_URL}/chat/summarize`, {
+                              messages: messages.map(m => ({
+                                sender: m.sender,
+                                message: m.message
+                              }))
+                            }, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            })
+                            setConversationSummary(response.data.summary || '')
+                            setShowSummary(true)
+                          } catch (error) {
+                            console.error('Error summarizing conversation:', error)
+                          } finally {
+                            setIsLoadingSummary(false)
+                          }
+                        }}
+                        disabled={messages.length === 0 || isLoadingSummary}
+                        className="text-xs px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        {isLoadingSummary ? <FaSpinner className="animate-spin" /> : <FaFileAlt />}
+                        Summarize
+                      </button>
+                    </div>
+                    {aiSuggestions.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {aiSuggestions.map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setNewMessage(suggestion)
+                              setAiSuggestions([])
+                            }}
+                            className="w-full text-left text-xs px-2 py-1.5 bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-800 rounded text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Conversation Summary Modal */}
+                {showSummary && conversationSummary && (
+                  <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <FaFileAlt className="text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">Conversation Summary</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowSummary(false)
+                          setConversationSummary('')
+                        }}
+                        className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        <FaTimes />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                      {conversationSummary}
+                    </p>
+                  </div>
+                )}
+
                 {/* Input Area */}
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-end gap-2 mb-2">
+                    <button
+                      onClick={() => setShowAIFeatures(!showAIFeatures)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        showAIFeatures 
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      title="AI Features"
+                    >
+                      <FaLightbulb className="text-sm" />
+                    </button>
+                  </div>
                   <div className="flex gap-3">
                     <input
                       type="text"

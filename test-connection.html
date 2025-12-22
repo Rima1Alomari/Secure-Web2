@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-box {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .loading { color: orange; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Connection Diagnostic Test</h1>
+    
+    <div class="test-box">
+        <h2>Test 1: Backend Server (Port 5001)</h2>
+        <button onclick="testBackend()">Test Backend</button>
+        <div id="backend-result"></div>
+    </div>
+    
+    <div class="test-box">
+        <h2>Test 2: Frontend Server (Port 3000)</h2>
+        <button onclick="testFrontend()">Test Frontend</button>
+        <div id="frontend-result"></div>
+    </div>
+    
+    <div class="test-box">
+        <h2>Test 3: API Proxy (via Frontend)</h2>
+        <button onclick="testProxy()">Test Proxy</button>
+        <div id="proxy-result"></div>
+    </div>
+    
+    <div class="test-box">
+        <h2>Test 4: Direct Login API</h2>
+        <button onclick="testLogin()">Test Login Endpoint</button>
+        <div id="login-result"></div>
+    </div>
+    
+    <div class="test-box">
+        <h2>Browser Information</h2>
+        <pre id="browser-info"></pre>
+    </div>
+
+    <script>
+        function updateResult(elementId, message, status) {
+            const element = document.getElementById(elementId);
+            const className = status === 'success' ? 'success' : status === 'error' ? 'error' : 'loading';
+            element.innerHTML = `<p class="${className}">${message}</p>`;
+        }
+
+        async function testBackend() {
+            updateResult('backend-result', 'Testing...', 'loading');
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/users');
+                if (response.ok) {
+                    const data = await response.json();
+                    updateResult('backend-result', `✅ SUCCESS: Backend is responding!<br>Received ${data.length} users`, 'success');
+                } else {
+                    updateResult('backend-result', `❌ ERROR: Backend returned status ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateResult('backend-result', `❌ ERROR: ${error.message}<br>Make sure the server is running on port 5001`, 'error');
+            }
+        }
+
+        async function testFrontend() {
+            updateResult('frontend-result', 'Testing...', 'loading');
+            try {
+                const response = await fetch('http://localhost:3000');
+                if (response.ok) {
+                    updateResult('frontend-result', '✅ SUCCESS: Frontend is responding!', 'success');
+                } else {
+                    updateResult('frontend-result', `❌ ERROR: Frontend returned status ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateResult('frontend-result', `❌ ERROR: ${error.message}<br>Make sure the client is running on port 3000`, 'error');
+            }
+        }
+
+        async function testProxy() {
+            updateResult('proxy-result', 'Testing...', 'loading');
+            try {
+                const response = await fetch('http://localhost:3000/api/auth/users');
+                if (response.ok) {
+                    const data = await response.json();
+                    updateResult('proxy-result', `✅ SUCCESS: Proxy is working!<br>Received ${data.length} users via proxy`, 'success');
+                } else {
+                    updateResult('proxy-result', `❌ ERROR: Proxy returned status ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateResult('proxy-result', `❌ ERROR: ${error.message}<br>The proxy might not be configured correctly`, 'error');
+            }
+        }
+
+        async function testLogin() {
+            updateResult('login-result', 'Testing...', 'loading');
+            try {
+                const response = await fetch('http://localhost:5001/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test@test.com', password: 'test' })
+                });
+                const data = await response.json();
+                if (response.status === 401) {
+                    updateResult('login-result', '✅ SUCCESS: Login endpoint is working!<br>(Expected 401 for invalid credentials)', 'success');
+                } else {
+                    updateResult('login-result', `Response: ${JSON.stringify(data)}`, 'success');
+                }
+            } catch (error) {
+                updateResult('login-result', `❌ ERROR: ${error.message}`, 'error');
+            }
+        }
+
+        // Display browser info
+        document.getElementById('browser-info').textContent = `
+User Agent: ${navigator.userAgent}
+Platform: ${navigator.platform}
+Language: ${navigator.language}
+Cookies Enabled: ${navigator.cookieEnabled}
+Online: ${navigator.onLine}
+Current URL: ${window.location.href}
+        `.trim();
+    </script>
+</body>
+</html>
+

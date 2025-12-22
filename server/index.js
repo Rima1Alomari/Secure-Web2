@@ -16,6 +16,7 @@ import securityRoutes from './routes/security.js'
 import auditRoutes from './routes/audit.js'
 import dataRightsRoutes from './routes/dataRights.js'
 import aiRoutes from './routes/ai.js'
+import chatRoutes from './routes/chat.js'
 import { initializeSecurityMiddleware } from './middleware/security.js'
 
 dotenv.config()
@@ -147,11 +148,35 @@ if (process.env.NODE_ENV === 'development') {
   initializeSecurityMiddleware(app)
 }
 
-// MongoDB connection
+// MongoDB connection with better error handling
 mongoose
-  .connect(MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err))
+  .connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+  })
+  .then(() => {
+    console.log('✅ MongoDB connected successfully')
+    console.log(`   Database: ${MONGODB_URI.split('/').pop()}`)
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message)
+    console.error('   Please make sure MongoDB is running and accessible')
+    console.error('   Connection string:', MONGODB_URI)
+    // Don't exit - let the server start but log the error
+  })
+
+// Handle MongoDB connection events
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB error:', err)
+})
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ MongoDB disconnected')
+})
+
+mongoose.connection.on('reconnected', () => {
+  console.log('✅ MongoDB reconnected')
+})
 
 // Socket.io authentication middleware
 io.use((socket, next) => {
@@ -191,6 +216,7 @@ app.use('/api/share', shareRoutes)
 app.use('/api/security', securityRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/data-rights', dataRightsRoutes)
+app.use('/api/chat', chatRoutes)
 
 // Serve static files from React app in development (proxy to Vite dev server)
 if (process.env.NODE_ENV === 'development') {

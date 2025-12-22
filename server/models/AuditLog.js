@@ -21,12 +21,12 @@ const auditLogSchema = new mongoose.Schema({
       'access_denied',
       'mfa_enabled',
       'mfa_disabled',
-      'settings_change'
+      'settings_change',
+      'message_delete'
     ]
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: mongoose.Schema.Types.Mixed, // Can be ObjectId or String (for 'unknown' cases)
     required: true
   },
   details: {

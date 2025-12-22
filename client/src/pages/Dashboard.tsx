@@ -54,12 +54,20 @@ const Dashboard = () => {
   // State to trigger refresh
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Get rooms with last message and unread count
+  const { user } = useUser()
+
+  // Get rooms with last message and unread count (filtered by user)
   const rooms = useMemo(() => {
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
     
-    return allRooms.map(room => {
+    // Filter rooms by ownerId or memberIds
+    const userRooms = allRooms.filter(room => 
+      !room.ownerId || room.ownerId === user?.id || 
+      (room.memberIds && room.memberIds.includes(user?.id || ''))
+    )
+    
+    return userRooms.map(room => {
       const roomMessages = allMessages
         .filter(msg => msg.roomId === room.id)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -76,12 +84,19 @@ const Dashboard = () => {
     }).sort((a, b) => new Date(b.lastMessageTime || b.updatedAt).getTime() - new Date(a.lastMessageTime || a.updatedAt).getTime())
   }, [refreshKey])
 
-  // Get upcoming meetings (next 3-5) - connected to Calendar events
+  // Get upcoming meetings (next 3-5) - connected to Calendar events (filtered by user)
   const upcomingMeetings = useMemo(() => {
     const allEvents = getJSON<EventItem[]>(EVENTS_KEY, []) || []
+    // Filter events by creatorId or attendees
+    const userEvents = allEvents.filter(e => 
+      e.creatorId === user?.id || 
+      e.organizerId === user?.id ||
+      (e.attendees && e.attendees.includes(user?.id || '')) ||
+      (e.isInvite && e.inviteStatus !== 'declined')
+    )
     const now = new Date()
     
-    return allEvents
+    return userEvents
       .map(e => {
         // Parse event date and time to get actual start datetime
         const eventDate = typeof e.date === 'string' ? new Date(e.date) : new Date(e.date)
@@ -107,30 +122,34 @@ const Dashboard = () => {
       .map(item => item.event) // Return just the events
   }, [refreshKey])
 
-  // Get shared files (files shared with current user or rooms user is in)
+  // Get shared files (files owned by user or shared with current user or rooms user is in)
   const sharedFiles = useMemo(() => {
     const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
     const userRooms = rooms.map(r => r.id)
     
     return allFiles
       .filter(file => {
-        // File is shared with user or with a room the user is in
-        return file.sharedWith && file.sharedWith.length > 0 && 
-               (file.sharedWith.includes('current-user') || 
-                file.sharedWith.some(roomId => userRooms.includes(roomId)))
+        // File is owned by user OR shared with user or with a room the user is in
+        return file.ownerId === user?.id ||
+               (file.sharedWith && file.sharedWith.length > 0 && 
+                (file.sharedWith.includes('current-user') || 
+                 file.sharedWith.includes(user?.id || '') ||
+                 file.sharedWith.some(roomId => userRooms.includes(roomId))))
       })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
   }, [rooms, refreshKey])
 
-  // Get security alerts from audit logs and screenshot attempts
+  // Get security alerts from audit logs and screenshot attempts (filtered by user)
   const securityAlerts = useMemo(() => {
     const allAuditLogs = getJSON<AuditLog[]>(AUDIT_LOGS_KEY, []) || []
-    const screenshotAttempts = getScreenshotAttempts()
+    // Filter audit logs by userId
+    const userAuditLogs = allAuditLogs.filter(log => log.userId === user?.id)
+    const screenshotAttempts = getScreenshotAttempts().filter(attempt => attempt.userId === user?.id)
     const now = new Date()
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     
     // Get alerts from audit logs
-    const auditAlerts = allAuditLogs
+    const auditAlerts = userAuditLogs
       .filter(log => {
         const logTime = new Date(log.timestamp)
         return logTime >= last24Hours && 
@@ -378,19 +397,20 @@ const Dashboard = () => {
 
         {/* Security Alerts */}
         <div className="mb-4">
-          <div className="card p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <FaShieldAlt className="text-slate-600 dark:text-slate-400 text-base" />
-                Security Alerts
-              </h2>
-              <button
-                onClick={() => navigate('/security')}
-                className="text-xs text-slate-700 dark:text-slate-300 hover:underline flex items-center gap-1"
-              >
-                View all <FaChevronRight className="text-[10px]" />
-              </button>
-            </div>
+          {role === 'admin' && (
+            <div className="card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <FaShieldAlt className="text-slate-600 dark:text-slate-400 text-base" />
+                  Security Alerts
+                </h2>
+                <button
+                  onClick={() => navigate('/security-alerts')}
+                  className="text-xs text-slate-700 dark:text-slate-300 hover:underline flex items-center gap-1"
+                >
+                  View all <FaChevronRight className="text-[10px]" />
+                </button>
+              </div>
             
             {securityAlerts.length === 0 ? (
               <div className="text-center py-4 text-gray-500 dark:text-gray-400">
@@ -458,7 +478,8 @@ const Dashboard = () => {
                 ))}
               </div>
             )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">

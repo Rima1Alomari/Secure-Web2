@@ -7,13 +7,15 @@ const router = express.Router()
 // Initialize OpenAI
 let openai = null
 try {
-  if (process.env.OPENAI_API_KEY) {
+  // Use environment variable only - never hardcode API keys
+  const apiKey = process.env.OPENAI_API_KEY
+  if (apiKey) {
     openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: apiKey
     })
     console.log('✅ OpenAI initialized successfully')
   } else {
-    console.warn('⚠️ OPENAI_API_KEY not found in environment variables')
+    console.warn('⚠️ OPENAI_API_KEY not found')
   }
 } catch (error) {
   console.error('❌ Failed to initialize OpenAI:', error)

@@ -16,6 +16,8 @@ import Recent from './pages/Recent'
 import TrashBin from './pages/TrashBin'
 import Administration from './pages/Administration'
 import AboutUs from './pages/AboutUs'
+import Profile from './pages/Profile'
+import SecurityAlerts from './pages/SecurityAlerts'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import { UserProvider } from './contexts/UserContext'
@@ -148,6 +150,14 @@ function App() {
                     } 
                   />
                   <Route 
+                    path="/profile" 
+                    element={
+                      <ProtectedRoute allowedRoles={['user', 'admin', 'security']}>
+                        <Profile />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
                     path="/trash" 
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
@@ -162,6 +172,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin', 'security']}>
                         <SecurityCenter />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/security-alerts" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <SecurityAlerts />
                       </ProtectedRoute>
                     } 
                   />

@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FaUsers, FaCog, FaSearch, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEllipsisV, FaExclamationTriangle, FaDownload, FaPalette, FaCheckCircle, FaUpload, FaTimes } from 'react-icons/fa'
+import { FaUsers, FaCog, FaSearch, FaSortUp, FaSortDown, FaChevronLeft, FaChevronRight, FaEllipsisV, FaExclamationTriangle, FaPalette, FaCheckCircle, FaUpload, FaTimes } from 'react-icons/fa'
 import TableSkeleton from '../components/TableSkeleton'
-import { Modal, Toast } from '../components/common'
-import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
-import { ADMIN_USERS_KEY, SECURITY_LOGS_KEY, FILES_KEY, SECURITY_SETTINGS_KEY, EVENTS_KEY } from '../data/keys'
-import { AdminUserMock, SecurityLog } from '../types/models'
+import { Modal, Toast, ConfirmDialog } from '../components/common'
+import { getJSON, setJSON, nowISO } from '../data/storage'
+import { ADMIN_USERS_KEY } from '../data/keys'
+import { AdminUserMock } from '../types/models'
 
 const Administration = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -28,6 +28,8 @@ const Administration = () => {
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [showEditUserModal, setShowEditUserModal] = useState(false)
   const [editingUser, setEditingUser] = useState<AdminUserMock | null>(null)
+  const [userToDelete, setUserToDelete] = useState<AdminUserMock | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null)
   const [themeSettings, setThemeSettings] = useState(() => {
     const saved = getJSON<{ logoColor: string; sidebarColor: string; logoUrl?: string }>('admin-theme-settings', null)
@@ -39,6 +41,7 @@ const Administration = () => {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
+    password: '',
     role: 'User' as AdminUserMock['role'],
     status: 'Active' as AdminUserMock['status']
   })
@@ -99,24 +102,52 @@ const Administration = () => {
     setToast({ message: 'Logo removed', type: 'info' })
   }
 
-  // Load users from localStorage
+  // Load users from backend API
   useEffect(() => {
-    const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
-    if (savedUsers.length === 0) {
-      // Initialize with default users
-      const defaultUsers: AdminUserMock[] = [
-        { id: uuid(), name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Jane Smith', email: 'jane@example.com', role: 'User', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Bob Johnson', email: 'bob@example.com', role: 'User', status: 'Inactive', createdAt: nowISO() },
-        { id: uuid(), name: 'Alice Williams', email: 'alice@example.com', role: 'User', status: 'Active', createdAt: nowISO() },
-        { id: uuid(), name: 'Charlie Brown', email: 'charlie@example.com', role: 'Moderator', status: 'Active', createdAt: nowISO() },
-      ]
-      setUsers(defaultUsers)
-      setJSON(ADMIN_USERS_KEY, defaultUsers)
-    } else {
-      setUsers(savedUsers)
+    const loadUsers = async () => {
+      try {
+        const API_URL = (import.meta as any).env.VITE_API_URL || '/api'
+        const token = localStorage.getItem('token') || 'mock-token-for-testing'
+        
+        const response = await fetch(`${API_URL}/auth/users`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+
+        if (response.ok) {
+          const backendUsers = await response.json()
+          // Map backend users to AdminUserMock format
+          const mappedUsers: AdminUserMock[] = backendUsers.map((u: any) => ({
+            id: u.id || u._id,
+            name: u.name,
+            email: u.email,
+            role: u.role === 'admin' ? 'Admin' : u.role === 'security' ? 'Moderator' : 'User',
+            status: 'Active', // Default status
+            createdAt: u.createdAt || nowISO()
+          }))
+          setUsers(mappedUsers)
+          setJSON(ADMIN_USERS_KEY, mappedUsers)
+        } else {
+          // Fallback to localStorage if API fails
+          const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+          if (savedUsers.length > 0) {
+            setUsers(savedUsers)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading users:', error)
+        // Fallback to localStorage
+        const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+        if (savedUsers.length > 0) {
+          setUsers(savedUsers)
+        }
+      } finally {
+        setIsLoading(false)
+      }
     }
-    setIsLoading(false)
+
+    loadUsers()
   }, [])
 
   // Save users to localStorage whenever they change
@@ -170,25 +201,80 @@ const Administration = () => {
     return filteredAndSortedUsers.slice(startIndex, startIndex + itemsPerPage)
   }, [filteredAndSortedUsers, currentPage])
 
-  const handleAddUser = () => {
-    if (!newUser.name.trim() || !newUser.email.trim()) {
+  const handleAddUser = async () => {
+    if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password) {
       setToast({ message: 'Please fill in all required fields', type: 'error' })
       return
     }
 
-    const user: AdminUserMock = {
-      id: uuid(),
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      status: newUser.status,
-      createdAt: nowISO()
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUser.email)) {
+      setToast({ message: 'Please enter a valid email address', type: 'error' })
+      return
     }
 
-    setUsers(prev => [...prev, user])
-    setToast({ message: `User "${user.name}" added successfully`, type: 'success' })
-    setShowAddUserModal(false)
-    setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+    // Validate password
+    if (newUser.password.length < 6) {
+      setToast({ message: 'Password must be at least 6 characters', type: 'error' })
+      return
+    }
+
+    try {
+      // Map role from UI to backend format
+      const roleMap: Record<string, string> = {
+        'User': 'user',
+        'Admin': 'admin',
+        'Moderator': 'user', // Map to user for now
+        'Guest': 'user'
+      }
+      const backendRole = roleMap[newUser.role] || 'user'
+
+      // Call backend API to create user
+      const API_URL = (import.meta as any).env.VITE_API_URL || '/api'
+      const token = localStorage.getItem('token') || 'mock-token-for-testing'
+      
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newUser.name.trim(),
+          email: newUser.email.trim().toLowerCase(),
+          password: newUser.password,
+          role: backendRole
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create user')
+      }
+
+      // User created successfully - add to local list
+      const createdUser: AdminUserMock = {
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        role: newUser.role, // Keep UI role
+        status: newUser.status,
+        createdAt: nowISO()
+      }
+
+      setUsers(prev => [...prev, createdUser])
+      setToast({ message: `User "${createdUser.name}" added successfully`, type: 'success' })
+      setShowAddUserModal(false)
+      setNewUser({ name: '', email: '', role: 'User', status: 'Active', password: '' })
+    } catch (error: any) {
+      console.error('Error adding user:', error)
+      setToast({ 
+        message: error.message || 'Failed to add user. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
   const handleEditUser = (user: AdminUserMock) => {
@@ -196,6 +282,7 @@ const Administration = () => {
     setNewUser({
       name: user.name,
       email: user.email,
+      password: '', // Don't show password when editing
       role: user.role,
       status: user.status
     })
@@ -210,19 +297,73 @@ const Administration = () => {
 
     setUsers(prev => prev.map(u => 
       u.id === editingUser.id 
-        ? { ...u, name: newUser.name, email: newUser.email, role: newUser.role, status: newUser.status }
+        ? { ...u, name: newUser.name, email: newUser.email, role: newUser.role, status: newUser.status, password: '' }
         : u
     ))
     setToast({ message: `User "${newUser.name}" updated successfully`, type: 'success' })
     setShowEditUserModal(false)
     setEditingUser(null)
-    setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+    setNewUser({ name: '', email: '', password: '', role: 'User', status: 'Active' })
   }
 
   const handleDeleteUser = (user: AdminUserMock) => {
-    if (window.confirm(`Are you sure you want to delete "${user.name}"?`)) {
-      setUsers(prev => prev.filter(u => u.id !== user.id))
-      setToast({ message: `User "${user.name}" deleted`, type: 'info' })
+    setUserToDelete(user)
+  }
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const API_URL = (import.meta as any).env.VITE_API_URL || '/api'
+      const token = localStorage.getItem('token') || 'mock-token-for-testing'
+      
+      const response = await fetch(`${API_URL}/auth/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete user')
+      }
+
+      // Remove from local state
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id))
+      setToast({ message: `User "${userToDelete.name}" deleted successfully`, type: 'success' })
+      setUserToDelete(null)
+
+      // Reload users from backend to ensure consistency
+      const reloadResponse = await fetch(`${API_URL}/auth/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (reloadResponse.ok) {
+        const backendUsers = await reloadResponse.json()
+        const mappedUsers: AdminUserMock[] = backendUsers.map((u: any) => ({
+          id: u.id || u._id,
+          name: u.name,
+          email: u.email,
+          role: u.role === 'admin' ? 'Admin' : u.role === 'security' ? 'Moderator' : 'User',
+          status: 'Active',
+          createdAt: u.createdAt || nowISO()
+        }))
+        setUsers(mappedUsers)
+        setJSON(ADMIN_USERS_KEY, mappedUsers)
+      }
+    } catch (error: any) {
+      console.error('Error deleting user:', error)
+      setToast({ 
+        message: error.message || 'Failed to delete user. Please try again.', 
+        type: 'error' 
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -455,6 +596,7 @@ const Administration = () => {
                                         setSelectedRowMenu(null)
                                       }}
                                       className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                      disabled={isDeleting}
                                     >
                                       Delete User
                                     </button>
@@ -663,7 +805,7 @@ const Administration = () => {
           isOpen={showAddUserModal}
           onClose={() => {
             setShowAddUserModal(false)
-            setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+            setNewUser({ name: '', email: '', password: '', role: 'User', status: 'Active' })
           }}
           title="Add New User"
         >
@@ -727,7 +869,7 @@ const Administration = () => {
               <button
                 onClick={() => {
                   setShowAddUserModal(false)
-                  setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+                  setNewUser({ name: '', email: '', password: '', role: 'User', status: 'Active' })
                 }}
                 className="btn-secondary flex-1"
               >
@@ -749,7 +891,7 @@ const Administration = () => {
           onClose={() => {
             setShowEditUserModal(false)
             setEditingUser(null)
-            setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+            setNewUser({ name: '', email: '', password: '', role: 'User', status: 'Active' })
           }}
           title="Edit User"
         >
@@ -814,7 +956,7 @@ const Administration = () => {
                 onClick={() => {
                   setShowEditUserModal(false)
                   setEditingUser(null)
-                  setNewUser({ name: '', email: '', role: 'User', status: 'Active' })
+                  setNewUser({ name: '', email: '', password: '', role: 'User', status: 'Active' })
                 }}
                 className="btn-secondary flex-1"
               >
@@ -829,6 +971,23 @@ const Administration = () => {
             </div>
           </div>
         </Modal>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          isOpen={userToDelete !== null}
+          title="Delete User"
+          message={`Are you sure you want to delete "${userToDelete?.name}"? This action cannot be undone.`}
+          confirmText={isDeleting ? "Deleting..." : "Delete"}
+          cancelText="Cancel"
+          confirmVariant="danger"
+          onConfirm={confirmDeleteUser}
+          onCancel={() => {
+            if (!isDeleting) {
+              setUserToDelete(null)
+            }
+          }}
+          isConfirming={isDeleting}
+        />
 
         {/* Toast */}
         {toast && (

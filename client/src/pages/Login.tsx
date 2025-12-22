@@ -49,8 +49,8 @@ const Login = ({ onLogin }: LoginProps) => {
         // Notify parent component
         onLogin()
         
-        // Navigate based on user role
-        let redirectPath = '/dashboard' // Default path
+        // Navigate based on user role - each role goes to their own independent page
+        let redirectPath = '/rooms' // Default for user
         
         switch (userRole) {
           case 'admin':
@@ -61,7 +61,7 @@ const Login = ({ onLogin }: LoginProps) => {
             break
           case 'user':
           default:
-            redirectPath = '/dashboard'
+            redirectPath = '/rooms'
             break
         }
         
@@ -73,7 +73,20 @@ const Login = ({ onLogin }: LoginProps) => {
     } catch (err: any) {
       console.error('Login error:', err)
       
-      // Handle 403 errors specifically
+      // Handle network errors (server not reachable)
+      if (!err.response) {
+        // Network error - server not reachable
+        if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+          setError('Cannot connect to server. Please make sure the server is running on port 5001.')
+        } else if (err.code === 'ERR_INTERNET_DISCONNECTED') {
+          setError('No internet connection. Please check your network and try again.')
+        } else {
+          setError('Network error. Please check if the server is running and try again.')
+        }
+        return
+      }
+      
+      // Handle HTTP status errors
       if (err.response?.status === 403) {
         setError('Access denied. Please try again or create a new account if you don\'t have one.')
       } else if (err.response?.status === 401) {
@@ -83,6 +96,13 @@ const Login = ({ onLogin }: LoginProps) => {
           setError('Account not found. Please create a new account or check your email and password.')
         } else {
           setError(errorMsg || 'Invalid email or password. Please try again.')
+        }
+      } else if (err.response?.status === 500) {
+        const errorMsg = err.response?.data?.error || ''
+        if (errorMsg.includes('Database connection')) {
+          setError('Database connection error. Please try again later or contact support.')
+        } else {
+          setError('Server error. Please try again later.')
         }
       } else {
         const errorMessage = err.response?.data?.error || err.message || 'Login failed. Please check your credentials or create a new account.'
@@ -122,6 +142,16 @@ const Login = ({ onLogin }: LoginProps) => {
                     >
                       Create a new account →
                     </Link>
+                  )}
+                  {(error.includes('server') || error.includes('Network') || error.includes('connect')) && (
+                    <div className="mt-2 text-sm">
+                      <p className="text-red-600 dark:text-red-400 mb-1">Troubleshooting:</p>
+                      <ul className="list-disc list-inside space-y-1 text-red-600 dark:text-red-400 text-xs">
+                        <li>Make sure the server is running on port 5001</li>
+                        <li>Check if MongoDB is running</li>
+                        <li>Verify your network connection</li>
+                      </ul>
+                    </div>
                   )}
                 </div>
               </div>

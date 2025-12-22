@@ -10,7 +10,7 @@ import { auditHelpers } from '../utils/audit'
 
 const Rooms = () => {
   const navigate = useNavigate()
-  const { role } = useUser()
+  const { role, user } = useUser()
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newRoom, setNewRoom] = useState({ name: '', description: '' })
@@ -62,12 +62,18 @@ const Rooms = () => {
     return getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
   }, [])
 
-  // Get rooms with last message and unread count
+  // Get rooms with last message and unread count (filtered by user)
   const rooms = useMemo(() => {
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
     
-    return allRooms.map(room => {
+    // Filter rooms by ownerId (only show rooms created by current user)
+    const userRooms = allRooms.filter(room => 
+      !room.ownerId || room.ownerId === user?.id || 
+      (room.memberIds && room.memberIds.includes(user?.id || ''))
+    )
+    
+    return userRooms.map(room => {
       const roomMessages = allMessages
         .filter(msg => msg.roomId === room.id)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -100,7 +106,8 @@ const Rooms = () => {
       updatedAt: nowISO(),
       roomLevel: roomClassification,
       classification: roomClassification,
-      memberIds: [],
+      memberIds: user?.id ? [user.id] : [],
+      ownerId: user?.id || '',
     }
 
     const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
