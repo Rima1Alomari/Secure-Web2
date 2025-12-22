@@ -31,7 +31,6 @@ import {
   FaRobot,
   FaLightbulb,
   FaMagic,
-  FaStar,
   FaBrain
 } from 'react-icons/fa'
 import { Modal, Toast, ConfirmDialog } from '../components/common'
@@ -104,8 +103,6 @@ const FileManager = () => {
   const [aiSearchResults, setAiSearchResults] = useState<FileItem[]>([])
   const [showAiInsights, setShowAiInsights] = useState(false)
   const [aiInsights, setAiInsights] = useState<string>('')
-  const [showAiSuggestions, setShowAiSuggestions] = useState(false)
-  const [aiSuggestions, setAiSuggestions] = useState<string>('')
   const [autoTagEnabled, setAutoTagEnabled] = useState(true)
   const [selectedFileForInsights, setSelectedFileForInsights] = useState<FileItem | null>(null)
   
@@ -575,33 +572,6 @@ const FileManager = () => {
     }
   }
 
-  // Get AI file organization suggestions
-  const getAISuggestions = async () => {
-    setShowAiSuggestions(true)
-    try {
-      const token = getToken() || 'mock-token-for-testing'
-      const response = await axios.post(
-        `${API_URL}/ai/activity-insights`,
-        {
-          activities: files.map(f => ({
-            name: f.name,
-            type: f.type,
-            size: f.size,
-            uploadedAt: f.uploadedAt
-          }))
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      )
-
-      setAiSuggestions(response.data.insights || 'No suggestions available')
-    } catch (error: any) {
-      console.error('AI suggestions error:', error)
-      setAiSuggestions('Unable to generate suggestions at this time.')
-    }
-  }
-
   // Get AI insights for a specific file
   const getFileInsights = async (file: FileItem) => {
     setSelectedFileForInsights(file)
@@ -885,13 +855,6 @@ const FileManager = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center gap-3">
               <h1 className="page-title">Files</h1>
-              <button
-                onClick={getAISuggestions}
-                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                title="Get AI organization suggestions"
-              >
-                <FaStar /> AI Suggestions
-              </button>
             </div>
             {(isAdmin || isRoomMember) && (
               <div className="flex items-center gap-2">
