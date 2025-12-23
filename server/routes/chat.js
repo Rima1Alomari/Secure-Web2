@@ -91,8 +91,12 @@ router.get('/room/:roomId', authenticate, async (req, res) => {
 
     res.json(messagesWithSenders)
   } catch (error) {
-    console.error('Error fetching room messages:', error)
-    res.status(500).json({ error: error.message })
+    console.error('❌ Error fetching room messages:', error)
+    console.error('Error stack:', error.stack)
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch messages',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
@@ -283,7 +287,11 @@ router.get('/direct/:otherUserId', authenticate, async (req, res) => {
     res.json(messagesWithSenders)
   } catch (error) {
     console.error('❌ Error fetching direct messages:', error)
-    res.status(500).json({ error: error.message })
+    console.error('Error stack:', error.stack)
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch messages',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 

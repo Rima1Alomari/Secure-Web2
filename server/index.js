@@ -17,6 +17,7 @@ import auditRoutes from './routes/audit.js'
 import dataRightsRoutes from './routes/dataRights.js'
 import aiRoutes from './routes/ai.js'
 import chatRoutes from './routes/chat.js'
+import roomRoutes from './routes/rooms.js'
 import { initializeSecurityMiddleware } from './middleware/security.js'
 
 dotenv.config()
@@ -119,7 +120,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
 // Add request logging for debugging
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api/ai') || req.path.startsWith('/api/auth')) {
+  if (req.path.startsWith('/api/ai') || req.path.startsWith('/api/auth') || req.path.startsWith('/api/chat')) {
     console.log(`📥 ${req.method} ${req.path} from ${req.ip}`)
   }
   next()
@@ -217,6 +218,7 @@ app.use('/api/security', securityRoutes)
 app.use('/api/audit', auditRoutes)
 app.use('/api/data-rights', dataRightsRoutes)
 app.use('/api/chat', chatRoutes)
+app.use('/api/rooms', roomRoutes)
 
 // Serve static files from React app in development (proxy to Vite dev server)
 if (process.env.NODE_ENV === 'development') {

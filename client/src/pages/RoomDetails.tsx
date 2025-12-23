@@ -13,19 +13,22 @@ import {
   FaLock,
   FaDownload,
   FaFile,
-  FaPlus
+  FaPlus,
+  FaUserPlus,
+  FaSearch,
+  FaTimes
 } from 'react-icons/fa'
 import { Modal, Toast, ConfirmDialog } from '../components/common'
 import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
-import { ROOMS_KEY, CHAT_MESSAGES_KEY, FILES_KEY, EVENTS_KEY } from '../data/keys'
-import { Room, ChatMessage, FileItem, EventItem } from '../types/models'
+import { ROOMS_KEY, CHAT_MESSAGES_KEY, FILES_KEY, EVENTS_KEY, ADMIN_USERS_KEY } from '../data/keys'
+import { Room, ChatMessage, FileItem, EventItem, AdminUserMock } from '../types/models'
 import { useUser } from '../contexts/UserContext'
 import { trackRoomOpened } from '../utils/recentTracker'
 import { getToken } from '../utils/auth'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api'
 
-type Tab = 'chat' | 'files' | 'meetings'
+type Tab = 'chat' | 'files' | 'meetings' | 'members'
 
 const RoomDetails = () => {
   const { id } = useParams<{ id: string }>()
@@ -47,6 +50,12 @@ const RoomDetails = () => {
   // Meetings state
   const [roomMeetings, setRoomMeetings] = useState<EventItem[]>([])
   
+  // Members state
+  const [allUsers, setAllUsers] = useState<AdminUserMock[]>([])
+  const [memberSearchQuery, setMemberSearchQuery] = useState('')
+  const [addMemberSearchQuery, setAddMemberSearchQuery] = useState('')
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false)
+  
   // Admin modals
   const [showManageMembersModal, setShowManageMembersModal] = useState(false)
   const [showRenameModal, setShowRenameModal] = useState(false)
@@ -67,83 +76,217 @@ const RoomDetails = () => {
       return
     }
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const foundRoom = allRooms.find(r => r.id === id)
-    
-    if (!foundRoom) {
-      setToast({ message: 'Room not found', type: 'error' })
-      navigate('/rooms')
-      return
-    }
+    setIsLoading(true)
 
-    setRoom(foundRoom)
-    setNewRoomName(foundRoom.name)
-    setRoomLevel(foundRoom.roomLevel || 'Normal')
-    setMemberIds(foundRoom.memberIds || [])
-    
-    // Track room opened
-    if (user?.id) {
-      trackRoomOpened(foundRoom.id, foundRoom.name, user.id)
-    }
-    
-    // Load messages for this room
-    const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
-    const roomMessages = allMessages
-      .filter(msg => msg.roomId === id)
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    setMessages(roomMessages)
-    
-    // Load files for this room from backend API
-    const fetchRoomFiles = async () => {
+    const loadRoom = async () => {
       try {
         const token = getToken() || 'mock-token-for-testing'
-        const response = await axios.get(`${API_URL}/files`, {
+        const response = await axios.get(`${API_URL}/rooms/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         
-        const backendFiles = response.data || []
-        // Map backend files to FileItem and filter by room
-        const mappedFiles = backendFiles
-          .map((backendFile: any) => ({
-            id: backendFile._id || backendFile.id,
-            name: backendFile.name,
-            size: backendFile.size,
-            type: backendFile.type,
-            uploadedAt: backendFile.createdAt || backendFile.uploadedAt || new Date().toISOString(),
-            owner: backendFile.owner?.name || backendFile.ownerName || 'Unknown',
-            ownerId: backendFile.owner?._id?.toString() || backendFile.owner?.toString() || backendFile.ownerId,
-            isTrashed: false,
-            isFolder: false,
-            sharedWith: [id], // Assume files are shared with this room
-            _backendId: backendFile._id || backendFile.id,
-          }))
-          .filter((file: FileItem) => 
-            (file as any).sharedWith?.includes(id) || file.roomId === id
-          )
-        setRoomFiles(mappedFiles)
-      } catch (error: any) {
-        console.error('Error fetching room files:', error)
-        // Fallback to localStorage if API fails
-        const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
-        const files = allFiles.filter(file => 
-          file.sharedWith && file.sharedWith.includes(id)
+        const foundRoom = {
+          id: response.data.id,
+          name: response.data.name,
+          description: response.data.description || '',
+          isPrivate: response.data.isPrivate || false,
+          members: response.data.members || 1,
+          maxMembers: response.data.maxMembers || 50,
+          createdAt: response.data.createdAt,
+          updatedAt: response.data.updatedAt,
+          ownerId: response.data.ownerId,
+          memberIds: response.data.memberIds || [],
+          roomLevel: response.data.roomLevel || 'Normal',
+          classification: response.data.classification || response.data.roomLevel || 'Normal'
+        }
+        
+        setRoom(foundRoom)
+        setNewRoomName(foundRoom.name)
+        setRoomLevel(foundRoom.roomLevel || 'Normal')
+        setMemberIds(foundRoom.memberIds || [])
+        
+        // Also save to localStorage as backup
+        const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
+        const updatedRooms = allRooms.filter(r => r.id !== id)
+        setJSON(ROOMS_KEY, [...updatedRooms, foundRoom])
+        
+        // Track room opened
+        if (user?.id) {
+          trackRoomOpened(foundRoom.id, foundRoom.name, user.id)
+        }
+        
+        // Load messages for this room
+        const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
+        const roomMessages = allMessages
+          .filter(msg => msg.roomId === id)
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        setMessages(roomMessages)
+        
+        // Load files for this room from backend API
+        const fetchRoomFiles = async () => {
+          try {
+            const token = getToken() || 'mock-token-for-testing'
+            const response = await axios.get(`${API_URL}/files`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            
+            const backendFiles = response.data || []
+            // Map backend files to FileItem and filter by room
+            const mappedFiles = backendFiles
+              .map((backendFile: any) => ({
+                id: backendFile._id || backendFile.id,
+                name: backendFile.name,
+                size: backendFile.size,
+                type: backendFile.type,
+                uploadedAt: backendFile.createdAt || backendFile.uploadedAt || new Date().toISOString(),
+                owner: backendFile.owner?.name || backendFile.ownerName || 'Unknown',
+                ownerId: backendFile.owner?._id?.toString() || backendFile.owner?.toString() || backendFile.ownerId,
+                isTrashed: false,
+                isFolder: false,
+                sharedWith: [id], // Assume files are shared with this room
+                _backendId: backendFile._id || backendFile.id,
+              }))
+              .filter((file: FileItem) => 
+                (file as any).sharedWith?.includes(id) || file.roomId === id
+              )
+            setRoomFiles(mappedFiles)
+          } catch (error: any) {
+            console.error('Error fetching room files:', error)
+            // Fallback to localStorage if API fails
+            const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
+            const files = allFiles.filter(file => 
+              file.sharedWith && file.sharedWith.includes(id)
+            )
+            setRoomFiles(files)
+          }
+        }
+        
+        fetchRoomFiles()
+        
+        // Load meetings for this room (events with roomId in description or metadata)
+        const allEvents = getJSON<EventItem[]>(EVENTS_KEY, []) || []
+        const meetings = allEvents.filter(event => 
+          event.description?.includes(`Room: ${id}`) || 
+          (event as any).roomId === id
         )
-        setRoomFiles(files)
+        setRoomMeetings(meetings)
+        
+      } catch (error: any) {
+        console.error('Error loading room:', error)
+        // Fallback to localStorage
+        const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
+        const foundRoom = allRooms.find(r => r.id === id)
+        
+        if (!foundRoom) {
+          setToast({ message: 'Room not found', type: 'error' })
+          navigate('/rooms')
+          setIsLoading(false)
+          return
+        }
+
+        setRoom(foundRoom)
+        setNewRoomName(foundRoom.name)
+        setRoomLevel(foundRoom.roomLevel || 'Normal')
+        setMemberIds(foundRoom.memberIds || [])
+        
+        // Track room opened
+        if (user?.id) {
+          trackRoomOpened(foundRoom.id, foundRoom.name, user.id)
+        }
+        
+        // Load messages for this room
+        const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
+        const roomMessages = allMessages
+          .filter(msg => msg.roomId === id)
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        setMessages(roomMessages)
+        
+        // Load files for this room from backend API
+        const fetchRoomFiles = async () => {
+          try {
+            const token = getToken() || 'mock-token-for-testing'
+            const response = await axios.get(`${API_URL}/files`, {
+              headers: { Authorization: `Bearer ${token}` }
+            })
+            
+            const backendFiles = response.data || []
+            // Map backend files to FileItem and filter by room
+            const mappedFiles = backendFiles
+              .map((backendFile: any) => ({
+                id: backendFile._id || backendFile.id,
+                name: backendFile.name,
+                size: backendFile.size,
+                type: backendFile.type,
+                uploadedAt: backendFile.createdAt || backendFile.uploadedAt || new Date().toISOString(),
+                owner: backendFile.owner?.name || backendFile.ownerName || 'Unknown',
+                ownerId: backendFile.owner?._id?.toString() || backendFile.owner?.toString() || backendFile.ownerId,
+                isTrashed: false,
+                isFolder: false,
+                sharedWith: [id],
+                _backendId: backendFile._id || backendFile.id,
+              }))
+              .filter((file: FileItem) => 
+                (file as any).sharedWith?.includes(id) || file.roomId === id
+              )
+            setRoomFiles(mappedFiles)
+          } catch (error: any) {
+            console.error('Error fetching room files:', error)
+            // Fallback to localStorage if API fails
+            const allFiles = getJSON<FileItem[]>(FILES_KEY, []) || []
+            const files = allFiles.filter(file => 
+              file.sharedWith && file.sharedWith.includes(id)
+            )
+            setRoomFiles(files)
+          }
+        }
+        
+        fetchRoomFiles()
+        
+        // Load meetings for this room
+        const allEvents = getJSON<EventItem[]>(EVENTS_KEY, []) || []
+        const meetings = allEvents.filter(event => 
+          event.description?.includes(`Room: ${id}`) || 
+          (event as any).roomId === id
+        )
+        setRoomMeetings(meetings)
+      } finally {
+        setIsLoading(false)
       }
     }
     
-    fetchRoomFiles()
+    loadRoom()
+  }, [id, navigate, user?.id])
+
+  // Load users for members management
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/auth/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && Array.isArray(response.data)) {
+          const mappedUsers: AdminUserMock[] = response.data.map((u: any) => ({
+            id: u.id || u._id,
+            name: u.name,
+            email: u.email,
+            role: u.role === 'admin' ? 'Admin' : u.role === 'security' ? 'Moderator' : 'User',
+            status: 'Active',
+            createdAt: u.createdAt || nowISO()
+          }))
+          setAllUsers(mappedUsers)
+          setJSON(ADMIN_USERS_KEY, mappedUsers)
+        }
+      } catch (error) {
+        console.error('Error loading users:', error)
+        const savedUsers = getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
+        setAllUsers(savedUsers)
+      }
+    }
     
-    // Load meetings for this room (events with roomId in description or metadata)
-    const allEvents = getJSON<EventItem[]>(EVENTS_KEY, []) || []
-    const meetings = allEvents.filter(event => 
-      event.description?.includes(`Room: ${id}`) || 
-      (event as any).roomId === id
-    )
-    setRoomMeetings(meetings)
-    
-    setIsLoading(false)
-  }, [id, navigate])
+    loadUsers()
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -315,48 +458,182 @@ const RoomDetails = () => {
     })
   }
 
+  // Get room members
+  const roomMembers = useMemo(() => {
+    if (!room || !room.memberIds) return []
+    return room.memberIds
+      .map(memberId => allUsers.find(u => u.id === memberId))
+      .filter((u): u is AdminUserMock => u !== undefined)
+  }, [room, allUsers])
+
+  // Filter members by search
+  const filteredMembers = useMemo(() => {
+    if (!memberSearchQuery.trim()) return roomMembers
+    const query = memberSearchQuery.toLowerCase()
+    return roomMembers.filter(m => 
+      m.name.toLowerCase().includes(query) || m.email.toLowerCase().includes(query)
+    )
+  }, [roomMembers, memberSearchQuery])
+
+  // Filter users for adding members
+  const filteredUsersForAdd = useMemo(() => {
+    if (!addMemberSearchQuery.trim()) return []
+    const query = addMemberSearchQuery.toLowerCase()
+    const memberIds = room?.memberIds || []
+    return allUsers
+      .filter(u => !memberIds.includes(u.id) && (u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query)))
+      .slice(0, 10)
+  }, [allUsers, addMemberSearchQuery, room])
+
+  const handleAddMember = async (userId: string, userName: string) => {
+    if (!room) return
+
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const response = await axios.post(`${API_URL}/rooms/${room.id}/members`, {
+        userId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      // Update local state
+      const updatedMemberIds = response.data.memberIds || []
+      setRoom({ ...room, memberIds: updatedMemberIds, members: response.data.members })
+      setMemberIds(updatedMemberIds)
+      setShowAddMemberModal(false)
+      setAddMemberSearchQuery('')
+      setToast({ message: `${userName} added to room`, type: 'success' })
+    } catch (error: any) {
+      console.error('Error adding member:', error)
+      const errorMsg = error.response?.data?.error || 'Failed to add member'
+      setToast({ message: errorMsg, type: errorMsg.includes('already') ? 'warning' : 'error' })
+    }
+  }
+
+  const handleRemoveMember = async (userId: string, userName: string) => {
+    if (!room || role !== 'admin') return
+
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const response = await axios.delete(`${API_URL}/rooms/${room.id}/members/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      // Update local state
+      const updatedMemberIds = response.data.memberIds || []
+      setRoom({ ...room, memberIds: updatedMemberIds, members: response.data.members })
+      setMemberIds(updatedMemberIds)
+      setToast({ message: `${userName} removed from room`, type: 'success' })
+    } catch (error: any) {
+      console.error('Error removing member:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to remove member. Please try again.', 
+        type: 'error' 
+      })
+    }
+  }
+
   const handleScheduleMeeting = () => {
     navigate('/calendar', { state: { roomId: id } })
   }
 
-  const handleRenameRoom = () => {
+  const handleRenameRoom = async () => {
     if (!newRoomName.trim() || !id) return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const updatedRooms = allRooms.map(r => 
-      r.id === id 
-        ? { ...r, name: newRoomName, updatedAt: nowISO() }
-        : r
-    )
-    setJSON(ROOMS_KEY, updatedRooms)
-    setRoom(updatedRooms.find(r => r.id === id) || null)
-    setShowRenameModal(false)
-    setToast({ message: 'Room renamed', type: 'success' })
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const response = await axios.put(`${API_URL}/rooms/${id}`, {
+        name: newRoomName
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      const updatedRoom = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description || '',
+        isPrivate: response.data.isPrivate || false,
+        members: response.data.members || 1,
+        maxMembers: response.data.maxMembers || 50,
+        createdAt: response.data.createdAt,
+        updatedAt: response.data.updatedAt,
+        ownerId: response.data.ownerId,
+        memberIds: response.data.memberIds || [],
+        roomLevel: response.data.roomLevel || 'Normal',
+        classification: response.data.classification || response.data.roomLevel || 'Normal'
+      }
+      
+      setRoom(updatedRoom)
+      setShowRenameModal(false)
+      setToast({ message: 'Room renamed', type: 'success' })
+    } catch (error: any) {
+      console.error('Error renaming room:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to rename room. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
-  const handleDeleteRoom = () => {
+  const handleDeleteRoom = async () => {
     if (!id) return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const updatedRooms = allRooms.filter(r => r.id !== id)
-    setJSON(ROOMS_KEY, updatedRooms)
-    setToast({ message: 'Room deleted', type: 'success' })
-    navigate('/rooms')
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      await axios.delete(`${API_URL}/rooms/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setShowDeleteConfirm(false)
+      navigate('/rooms')
+      setToast({ message: 'Room deleted successfully', type: 'success' })
+    } catch (error: any) {
+      console.error('Error deleting room:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to delete room. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
-  const handleUpdateSettings = () => {
+  const handleUpdateSettings = async () => {
     if (!id) return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const updatedRooms = allRooms.map(r => 
-      r.id === id 
-        ? { ...r, roomLevel, memberIds, updatedAt: nowISO() }
-        : r
-    )
-    setJSON(ROOMS_KEY, updatedRooms)
-    setRoom(updatedRooms.find(r => r.id === id) || null)
-    setShowSettingsModal(false)
-    setToast({ message: 'Room settings updated', type: 'success' })
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const response = await axios.put(`${API_URL}/rooms/${id}`, {
+        roomLevel,
+        classification: roomLevel,
+        memberIds
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      const updatedRoom = {
+        id: response.data.id,
+        name: response.data.name,
+        description: response.data.description || '',
+        isPrivate: response.data.isPrivate || false,
+        members: response.data.members || 1,
+        maxMembers: response.data.maxMembers || 50,
+        createdAt: response.data.createdAt,
+        updatedAt: response.data.updatedAt,
+        ownerId: response.data.ownerId,
+        memberIds: response.data.memberIds || [],
+        roomLevel: response.data.roomLevel || 'Normal',
+        classification: response.data.classification || response.data.roomLevel || 'Normal'
+      }
+      
+      setRoom(updatedRoom)
+      setShowSettingsModal(false)
+      setToast({ message: 'Room settings updated', type: 'success' })
+    } catch (error: any) {
+      console.error('Error updating room settings:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to update room settings. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
   const formatTime = (timestamp: string | Date) => {
@@ -462,6 +739,16 @@ const RoomDetails = () => {
             }`}
           >
             Meetings/Schedule
+          </button>
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+              activeTab === 'members'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            Members
           </button>
         </div>
 
@@ -661,7 +948,148 @@ const RoomDetails = () => {
               )}
             </div>
           )}
+
+          {/* Members Tab */}
+          {activeTab === 'members' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Members ({roomMembers.length})
+                </h2>
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="btn-primary"
+                >
+                  <FaUserPlus /> Add Member
+                </button>
+              </div>
+
+              {/* Search Members */}
+              <div className="mb-4">
+                <div className="relative">
+                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+                  <input
+                    type="text"
+                    value={memberSearchQuery}
+                    onChange={(e) => setMemberSearchQuery(e.target.value)}
+                    placeholder="Search members…"
+                    className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm"
+                  />
+                </div>
+              </div>
+
+              {filteredMembers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <FaUsers className="text-4xl mx-auto mb-3 opacity-50" />
+                  <p>{memberSearchQuery.trim() ? 'No members found' : 'No members in this room'}</p>
+                  {!memberSearchQuery.trim() && (
+                    <button
+                      onClick={() => setShowAddMemberModal(true)}
+                      className="btn-primary mt-4"
+                    >
+                      <FaUserPlus /> Add First Member
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-4 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                          <FaUser className="text-white text-sm" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                            {member.name}
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {member.email}
+                          </p>
+                        </div>
+                        {member.role && (
+                          <span className={`text-xs px-2 py-1 rounded font-medium ${
+                            member.role === 'Admin' 
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                              : member.role === 'Moderator'
+                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {member.role}
+                          </span>
+                        )}
+                      </div>
+                      {role === 'admin' && (
+                        <button
+                          onClick={() => handleRemoveMember(member.id, member.name)}
+                          className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ml-3"
+                          title="Remove member"
+                        >
+                          <FaTimes />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Add Member Modal */}
+        <Modal
+          isOpen={showAddMemberModal}
+          onClose={() => {
+            setShowAddMemberModal(false)
+            setAddMemberSearchQuery('')
+          }}
+          title="Add Member to Room"
+        >
+          <div className="space-y-4">
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm" />
+              <input
+                type="text"
+                value={addMemberSearchQuery}
+                onChange={(e) => setAddMemberSearchQuery(e.target.value)}
+                placeholder="Search users…"
+                className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              />
+            </div>
+            
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredUsersForAdd.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-500 text-center py-4">
+                  {addMemberSearchQuery.trim() ? 'No users found' : 'Start typing to search users'}
+                </p>
+              ) : (
+                filteredUsersForAdd.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => handleAddMember(user.id, user.name)}
+                    className="w-full text-left p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                  >
+                    <div className="w-10 h-10 bg-green-600 dark:bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <FaUser className="text-white text-sm" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 dark:text-white truncate">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                    <FaPlus className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Modal>
 
         {/* Rename Modal */}
         <Modal

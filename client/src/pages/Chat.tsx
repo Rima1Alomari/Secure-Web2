@@ -33,10 +33,56 @@ const Chat = () => {
   const [conversationSummary, setConversationSummary] = useState('')
   const [isLoadingSummary, setIsLoadingSummary] = useState(false)
 
+  // State for rooms from API
+  const [roomsFromAPI, setRoomsFromAPI] = useState<Room[]>([])
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true)
+
+  // Fetch rooms from API
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setIsLoadingRooms(true)
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/rooms`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && Array.isArray(response.data)) {
+          const apiRooms = response.data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description || '',
+            isPrivate: r.isPrivate || false,
+            members: r.members || 1,
+            maxMembers: r.maxMembers || 50,
+            createdAt: r.createdAt || nowISO(),
+            updatedAt: r.updatedAt || nowISO(),
+            ownerId: r.ownerId,
+            memberIds: r.memberIds || [],
+            roomLevel: r.roomLevel || 'Normal',
+            classification: r.classification || r.roomLevel || 'Normal'
+          }))
+          setRoomsFromAPI(apiRooms)
+          // Also save to localStorage as backup
+          setJSON(ROOMS_KEY, apiRooms)
+        }
+      } catch (error) {
+        console.error('Error fetching rooms from API:', error)
+        // Fallback to localStorage
+        const savedRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
+        setRoomsFromAPI(savedRooms)
+      } finally {
+        setIsLoadingRooms(false)
+      }
+    }
+    
+    if (user?.id) {
+      fetchRooms()
+    }
+  }, [refreshKey, user?.id])
+
   // Get rooms
-  const rooms = useMemo(() => {
-    return getJSON<Room[]>(ROOMS_KEY, []) || []
-  }, [refreshKey])
+  const rooms = roomsFromAPI
 
   // Get all messages (not user-scoped, as chat messages are shared)
   const allMessages = useMemo(() => {
@@ -87,6 +133,19 @@ const Chat = () => {
     
     loadUsers()
   }, [])
+
+  // Get room members when a room is selected
+  const roomMembers = useMemo(() => {
+    if (!selectedChat || selectedChat.type !== 'room') return []
+    
+    const room = rooms.find(r => r.id === selectedChat.id)
+    if (!room || !room.memberIds) return []
+    
+    // Map member IDs to user objects
+    return room.memberIds
+      .map(memberId => allUsers.find(u => u.id === memberId))
+      .filter((u): u is AdminUserMock => u !== undefined)
+  }, [selectedChat, rooms, allUsers])
 
   // Get direct chats (simple implementation)
   const directChats = useMemo(() => {
@@ -280,13 +339,36 @@ const Chat = () => {
         console.log(`Received ${response.data.length} messages from API`)
       }
 
-      const apiMessages = response.data.map((msg: any) => ({
-        ...msg,
-        timestamp: typeof msg.timestamp === 'string' ? msg.timestamp : new Date(msg.timestamp).toISOString(),
-        isOwn: msg.isOwn !== undefined ? msg.isOwn : (msg.senderId === user.id),
-        sender: msg.sender || 'Unknown', // Ensure sender name is always present
-        senderId: msg.senderId || msg.sender?._id || msg.sender
-      }))
+      const apiMessages = response.data.map((msg: any) => {
+        // Normalize senderId to string for comparison
+        const msgSenderId = msg.senderId ? String(msg.senderId) : (msg.sender?._id ? String(msg.sender._id) : String(msg.sender || ''))
+        const currentUserId = String(user.id)
+        
+        // Ensure timestamp is a string
+        let timestampStr = msg.timestamp
+        if (!timestampStr) {
+          timestampStr = new Date().toISOString()
+        } else if (typeof timestampStr !== 'string') {
+          timestampStr = new Date(timestampStr).toISOString()
+        }
+        
+        return {
+          id: msg.id || String(msg._id || Date.now()),
+          message: msg.message || '',
+          sender: msg.sender || 'Unknown',
+          senderId: msgSenderId,
+          timestamp: timestampStr,
+          isOwn: msg.isOwn !== undefined ? msg.isOwn : (msgSenderId === currentUserId),
+          roomId: msg.roomId,
+          recipientId: msg.recipientId,
+          read: msg.read !== undefined ? msg.read : false
+        }
+      }).sort((a, b) => {
+        // Sort messages by timestamp
+        const timeA = new Date(a.timestamp).getTime()
+        const timeB = new Date(b.timestamp).getTime()
+        return timeA - timeB
+      })
 
       // Validate all messages have required fields
       const validMessages = apiMessages.filter((msg: any) => {
@@ -324,21 +406,33 @@ const Chat = () => {
       
       setUseBackend(true)
 
-      // Also save to localStorage as backup (but don't use user-scoped key for chat messages)
+      // Always save ALL messages to localStorage as backup (messages persist in MongoDB, this is just backup)
       // Chat messages are shared and shouldn't be user-scoped
       try {
         const baseKey = CHAT_MESSAGES_KEY
         const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
         const existingIds = new Set(existingMessages.map((m: ChatMessage) => m.id))
-        const newMessages = apiMessages.filter((m: ChatMessage) => !existingIds.has(m.id))
-        if (newMessages.length > 0 || apiMessages.length > 0) {
-          // Merge and deduplicate
-          const merged = [...existingMessages, ...newMessages]
-          const uniqueMessages = Array.from(
-            new Map(merged.map((m: ChatMessage) => [m.id, m])).values()
-          )
-          localStorage.setItem(baseKey, JSON.stringify(uniqueMessages))
-        }
+        
+        // Merge all messages - keep existing ones and add new ones
+        const merged = [...existingMessages]
+        apiMessages.forEach((newMsg: ChatMessage) => {
+          if (!existingIds.has(newMsg.id)) {
+            merged.push(newMsg)
+          } else {
+            // Update existing message if it changed
+            const index = merged.findIndex(m => m.id === newMsg.id)
+            if (index !== -1) {
+              merged[index] = newMsg
+            }
+          }
+        })
+        
+        // Save all merged messages
+        const uniqueMessages = Array.from(
+          new Map(merged.map((m: ChatMessage) => [m.id, m])).values()
+        )
+        localStorage.setItem(baseKey, JSON.stringify(uniqueMessages))
+        console.log(`💾 Saved ${uniqueMessages.length} messages to localStorage (backup)`)
       } catch (error) {
         console.error('Error saving messages to localStorage:', error)
       }
@@ -384,7 +478,7 @@ const Chat = () => {
   // Load messages for selected chat
   useEffect(() => {
     if (!selectedChat) {
-      setMessages([])
+      // Don't clear messages when no chat selected - keep them in state
       // Clear polling interval
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
@@ -393,7 +487,7 @@ const Chat = () => {
       return
     }
 
-    // Fetch messages immediately
+    // Fetch messages immediately from API (messages are persisted in MongoDB)
     fetchMessages()
 
     // Set up polling for new messages (every 2 seconds)
@@ -465,108 +559,82 @@ const Chat = () => {
     // Add optimistic message immediately
     setMessages(prev => [...prev, optimisticMessage])
 
-    // Try to send via API
-    if (useBackend) {
-      try {
-        const token = getToken() || 'mock-token-for-testing'
-        const payload: any = {
-          message: messageText
-        }
+    // Always try to send via API first
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const payload: any = {
+        message: messageText
+      }
 
-        if (selectedChat.type === 'room') {
-          payload.roomId = selectedChat.id
-        } else {
-          const chatId = selectedChat.id.split('-')
-          const otherUserId = chatId[0] === user.id ? chatId[1] : chatId[0]
-          
-          if (!otherUserId) {
-            console.error('Cannot determine recipient ID from chat ID:', selectedChat.id)
-            throw new Error('Invalid chat ID')
-          }
-          
-          payload.recipientId = otherUserId
-          console.log(`📤 Sending message to user: ${otherUserId} (from: ${user.id})`)
-        }
-
-        console.log(`📤 Sending message via API:`, payload)
-        const response = await axios.post(`${API_URL}/chat/send`, payload, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        console.log(`✅ Message sent successfully:`, response.data)
-
-        // Replace optimistic message with real one from server
-        const realMessage: ChatMessage = {
-          ...response.data,
-          timestamp: typeof response.data.timestamp === 'string' 
-            ? response.data.timestamp 
-            : new Date(response.data.timestamp).toISOString(),
-          isOwn: true,
-          sender: response.data.sender || user.name || 'You',
-          senderId: response.data.senderId || user.id
+      if (selectedChat.type === 'room') {
+        payload.roomId = selectedChat.id
+      } else {
+        const chatId = selectedChat.id.split('-')
+        const otherUserId = chatId[0] === user.id ? chatId[1] : chatId[0]
+        
+        if (!otherUserId) {
+          console.error('Cannot determine recipient ID from chat ID:', selectedChat.id)
+          throw new Error('Invalid chat ID')
         }
         
-        // Replace the optimistic message with the real one
-        setMessages(prev => {
-          const filtered = prev.filter(msg => msg.id !== optimisticMessage.id)
-          return [...filtered, realMessage]
-        })
+        payload.recipientId = otherUserId
+        console.log(`📤 Sending message to user: ${otherUserId} (from: ${user.id})`)
+      }
 
-        // Save to localStorage as backup
+      console.log(`📤 Sending message via API:`, payload)
+      const response = await axios.post(`${API_URL}/chat/send`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      console.log(`✅ Message sent successfully:`, response.data)
+
+      // Replace optimistic message with real one from server
+      const realMessage: ChatMessage = {
+        ...response.data,
+        timestamp: typeof response.data.timestamp === 'string' 
+          ? response.data.timestamp 
+          : new Date(response.data.timestamp).toISOString(),
+        isOwn: true,
+        sender: response.data.sender || user.name || 'You',
+        senderId: response.data.senderId || user.id
+      }
+      
+      // Replace the optimistic message with the real one
+      setMessages(prev => {
+        const filtered = prev.filter(msg => msg.id !== optimisticMessage.id)
+        return [...filtered, realMessage]
+      })
+
+        // Save to localStorage as backup (messages are already in MongoDB, this is just backup)
         try {
           const baseKey = CHAT_MESSAGES_KEY
           const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
           const exists = existingMessages.some((m: ChatMessage) => m.id === realMessage.id)
           if (!exists) {
-            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, realMessage]))
+            const updatedMessages = [...existingMessages, realMessage]
+            localStorage.setItem(baseKey, JSON.stringify(updatedMessages))
+            console.log(`💾 Saved message to localStorage backup (total: ${updatedMessages.length})`)
           }
         } catch (error) {
           console.error('Error saving message to localStorage:', error)
         }
 
-        // Force refresh messages after a short delay to ensure both users see the message
-        setTimeout(() => {
-          fetchMessages().catch(err => {
-            console.error('Error refreshing messages after send:', err)
-          })
-        }, 1000)
+      // Force refresh messages after a short delay to ensure both users see the message
+      setTimeout(() => {
+        fetchMessages().catch(err => {
+          console.error('Error refreshing messages after send:', err)
+        })
+      }, 1000)
 
-        // Save to localStorage as backup (not user-scoped)
-        try {
-          const baseKey = CHAT_MESSAGES_KEY
-          const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
-          const newMessage = {
-            ...response.data,
-            timestamp: typeof response.data.timestamp === 'string' 
-              ? response.data.timestamp 
-              : new Date(response.data.timestamp).toISOString()
-          }
-          // Check if message already exists
-          const exists = existingMessages.some((m: ChatMessage) => m.id === newMessage.id)
-          if (!exists) {
-            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, newMessage]))
-          }
-        } catch (error) {
-          console.error('Error saving message to localStorage:', error)
-        }
-        setRefreshKey(prev => prev + 1)
-      } catch (error: any) {
-        console.error('Error sending message via API:', error)
-        // Fallback to localStorage only (not user-scoped)
-        setUseBackend(false)
-        try {
-          const baseKey = CHAT_MESSAGES_KEY
-          const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
-          const exists = existingMessages.some((m: ChatMessage) => m.id === optimisticMessage.id)
-          if (!exists) {
-            localStorage.setItem(baseKey, JSON.stringify([...existingMessages, optimisticMessage]))
-          }
-        } catch (error) {
-          console.error('Error saving message to localStorage:', error)
-        }
-        setRefreshKey(prev => prev + 1)
-      }
-    } else {
-      // Use localStorage only (not user-scoped)
+      setRefreshKey(prev => prev + 1)
+      setUseBackend(true)
+    } catch (error: any) {
+      console.error('❌ Error sending message via API:', error)
+      console.error('Error details:', error.response?.data || error.message)
+      
+      // Keep the optimistic message but show an error
+      alert(`Failed to send message: ${error.response?.data?.error || error.message || 'Unknown error'}`)
+      
+      // Still save to localStorage as fallback
       try {
         const baseKey = CHAT_MESSAGES_KEY
         const existingMessages = JSON.parse(localStorage.getItem(baseKey) || '[]') || []
@@ -574,9 +642,11 @@ const Chat = () => {
         if (!exists) {
           localStorage.setItem(baseKey, JSON.stringify([...existingMessages, optimisticMessage]))
         }
-      } catch (error) {
-        console.error('Error saving message to localStorage:', error)
+      } catch (saveError) {
+        console.error('Error saving message to localStorage:', saveError)
       }
+      
+      setUseBackend(false)
       setRefreshKey(prev => prev + 1)
     }
   }
@@ -800,9 +870,11 @@ const Chat = () => {
           {/* Messages Area */}
           <div className="flex-1 flex flex-col">
             {selectedChat ? (
-              <>
-                {/* Chat Header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex flex-1 overflow-hidden">
+                {/* Main Chat Area */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  {/* Chat Header */}
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       {selectedChat.type === 'room' ? (
@@ -859,7 +931,7 @@ const Chat = () => {
                       Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
                     </div>
                   )}
-                </div>
+                  </div>
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -883,36 +955,31 @@ const Chat = () => {
                       return (
                         <div
                           key={msg.id}
-                          className={`flex gap-3 ${msg.isOwn ? 'flex-row-reverse' : ''} ${
+                          className={`flex gap-3 ${msg.isOwn ? 'flex-row-reverse justify-end' : 'flex-row justify-start'} ${
                             isSearchMatch ? 'bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-2 -m-2' : ''
                           }`}
                         >
-                          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                            msg.isOwn 
-                              ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500' 
-                              : 'bg-gray-400 dark:bg-gray-600'
-                          }`}>
-                            <FaUser className="text-white text-sm" />
-                          </div>
-                          <div className={`flex-1 ${msg.isOwn ? 'text-right' : ''}`}>
-                            <div className={`flex items-center gap-2 mb-1 ${msg.isOwn ? 'justify-end' : 'justify-start'}`}>
-                              {!msg.isOwn && (
-                                <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium">
-                                  من: {msg.sender}
-                                </span>
-                              )}
-                              {msg.isOwn && (
-                                <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-medium">
-                                  أنت
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-500 dark:text-gray-400">{formatTime(msg.timestamp)}</span>
+                          {!msg.isOwn && (
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gray-400 dark:bg-gray-600">
+                              <FaUser className="text-white text-sm" />
                             </div>
+                          )}
+                          <div className={`flex flex-col ${msg.isOwn ? 'items-end' : 'items-start'} max-w-[75%]`}>
+                            {/* Sender name above message */}
+                            <div className={`mb-1 ${msg.isOwn ? 'text-right' : 'text-left'}`}>
+                              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                {msg.isOwn ? (user?.name || 'أنت') : (msg.sender || 'Unknown')}
+                              </span>
+                              <span className={`text-xs text-gray-500 dark:text-gray-400 ${msg.isOwn ? 'mr-2' : 'ml-2'}`}>
+                                {formatTime(msg.timestamp)}
+                              </span>
+                            </div>
+                            {/* Message bubble */}
                             <div
-                              className={`inline-block px-5 py-3 rounded-xl shadow-lg ${
+                              className={`px-5 py-3 rounded-xl shadow-lg ${
                                 msg.isOwn
-                                  ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white'
-                                  : 'bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 text-gray-900 dark:text-white'
+                                  ? 'bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500 text-white rounded-tr-none'
+                                  : 'bg-white dark:bg-gray-700 border-2 border-blue-200/50 dark:border-blue-800/50 text-gray-900 dark:text-white rounded-tl-none'
                               }`}
                             >
                               {messageSearchQuery.trim() ? (
@@ -927,6 +994,11 @@ const Chat = () => {
                               )}
                             </div>
                           </div>
+                          {msg.isOwn && (
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-r from-blue-600 to-green-600 dark:from-blue-500 dark:to-green-500">
+                              <FaUser className="text-white text-sm" />
+                            </div>
+                          )}
                         </div>
                       )
                     })
@@ -1074,7 +1146,62 @@ const Chat = () => {
                     </button>
                   </div>
                 </div>
-              </>
+                </div>
+
+                {/* Room Members Sidebar - Only show for room chats */}
+                {selectedChat.type === 'room' && (
+                  <div className="w-64 border-l border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-800/50">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                        Members ({roomMembers.length})
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {rooms.find(r => r.id === selectedChat.id)?.members || 0} total
+                      </p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3">
+                      {roomMembers.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                          <FaUsers className="text-3xl mb-2 opacity-50 mx-auto" />
+                          <p className="text-xs">No members found</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {roomMembers.map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                            >
+                              <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <FaUser className="text-white text-[10px]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                  {member.name}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  {member.email}
+                                </p>
+                              </div>
+                              {member.role && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  member.role === 'Admin' 
+                                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                    : member.role === 'Moderator'
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}>
+                                  {member.role}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-gray-500 dark:text-gray-400">
                 <FaComments className="text-6xl mb-4 opacity-50" />

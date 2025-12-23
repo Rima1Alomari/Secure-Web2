@@ -10,18 +10,29 @@ export const authenticate = async (req, res, next) => {
     if (!token || token === 'mock-token-for-testing') {
       // For development/testing, try to get user from token or use fallback
       if (process.env.NODE_ENV === 'development') {
-        // Try to find any admin user in the database
+        // Try to find any user in the database (prefer admin, but any user works)
         try {
           const mongoose = await import('mongoose')
           if (mongoose.default.connection.readyState === 1) {
-            const adminUser = await User.findOne({ role: 'admin' })
-            if (adminUser) {
-              req.user = { _id: adminUser._id }
+            // First try to find admin user
+            let user = await User.findOne({ role: 'admin' })
+            // If no admin, get any user
+            if (!user) {
+              user = await User.findOne()
+            }
+            if (user) {
+              req.user = { 
+                _id: user._id,
+                role: user.role || 'user',
+                name: user.name,
+                email: user.email
+              }
+              console.log(`✅ Development mode: Using user ${user.name} (${user.email}) for ${req.method} ${req.path}`)
               return next()
             }
           }
         } catch (dbError) {
-          console.error('Error finding admin user:', dbError)
+          console.error('Error finding user in development mode:', dbError)
         }
       }
       

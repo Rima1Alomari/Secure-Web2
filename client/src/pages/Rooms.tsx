@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { FaPlus, FaUsers, FaLock, FaUnlock, FaClock, FaEllipsisV, FaInfo, FaEdit, FaTrash, FaSearch, FaTimes, FaUserPlus } from 'react-icons/fa'
 import { Modal, ConfirmDialog, Toast } from '../components/common'
-import { getJSON, setJSON, uuid, nowISO } from '../data/storage'
+import { getJSON, setJSON, nowISO } from '../data/storage'
 import { ROOMS_KEY, CHAT_MESSAGES_KEY, ADMIN_USERS_KEY } from '../data/keys'
 import { Room, ChatMessage, AdminUserMock } from '../types/models'
 import { useUser } from '../contexts/UserContext'
 import { auditHelpers } from '../utils/audit'
+import { getToken } from '../utils/auth'
+
+const API_URL = (import.meta as any).env.VITE_API_URL || '/api'
 
 const Rooms = () => {
   const navigate = useNavigate()
@@ -62,18 +66,57 @@ const Rooms = () => {
     return getJSON<AdminUserMock[]>(ADMIN_USERS_KEY, []) || []
   }, [])
 
+  // State for rooms from API
+  const [roomsFromAPI, setRoomsFromAPI] = useState<Room[]>([])
+  const [isLoadingRooms, setIsLoadingRooms] = useState(true)
+
+  // Fetch rooms from API
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        setIsLoadingRooms(true)
+        const token = getToken() || 'mock-token-for-testing'
+        const response = await axios.get(`${API_URL}/rooms`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && Array.isArray(response.data)) {
+          const apiRooms = response.data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description || '',
+            isPrivate: r.isPrivate || false,
+            members: r.members || 1,
+            maxMembers: r.maxMembers || 50,
+            createdAt: r.createdAt || nowISO(),
+            updatedAt: r.updatedAt || nowISO(),
+            ownerId: r.ownerId,
+            memberIds: r.memberIds || [],
+            roomLevel: r.roomLevel || 'Normal',
+            classification: r.classification || r.roomLevel || 'Normal'
+          }))
+          setRoomsFromAPI(apiRooms)
+          // Also save to localStorage as backup
+          setJSON(ROOMS_KEY, apiRooms)
+        }
+      } catch (error) {
+        console.error('Error fetching rooms from API:', error)
+        // Fallback to localStorage
+        const savedRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
+        setRoomsFromAPI(savedRooms)
+      } finally {
+        setIsLoadingRooms(false)
+      }
+    }
+    
+    fetchRooms()
+  }, [refreshKey])
+
   // Get rooms with last message and unread count (filtered by user)
   const rooms = useMemo(() => {
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
     const allMessages = getJSON<ChatMessage[]>(CHAT_MESSAGES_KEY, []) || []
     
-    // Filter rooms by ownerId (only show rooms created by current user)
-    const userRooms = allRooms.filter(room => 
-      !room.ownerId || room.ownerId === user?.id || 
-      (room.memberIds && room.memberIds.includes(user?.id || ''))
-    )
-    
-    return userRooms.map(room => {
+    return roomsFromAPI.map(room => {
       const roomMessages = allMessages
         .filter(msg => msg.roomId === room.id)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -81,46 +124,57 @@ const Rooms = () => {
       const lastMessage = roomMessages[0]
       const unreadCount = roomMessages.filter(msg => !msg.isOwn && msg.read !== true).length
       
+      const lastMessageTime = lastMessage?.timestamp 
+        ? (typeof lastMessage.timestamp === 'string' ? lastMessage.timestamp : new Date(lastMessage.timestamp).toISOString())
+        : (typeof room.updatedAt === 'string' ? room.updatedAt : new Date(room.updatedAt).toISOString())
+      
       return {
         ...room,
         lastMessage: lastMessage?.message || 'No messages yet',
-        lastMessageTime: lastMessage?.timestamp || room.updatedAt,
+        lastMessageTime,
         unreadCount: unreadCount || 0,
       }
-    }).sort((a, b) => new Date(b.lastMessageTime || b.updatedAt).getTime() - new Date(a.lastMessageTime || a.updatedAt).getTime())
-  }, [refreshKey])
+    }).sort((a, b) => {
+      const timeA = typeof a.lastMessageTime === 'string' ? new Date(a.lastMessageTime).getTime() : new Date(a.updatedAt).getTime()
+      const timeB = typeof b.lastMessageTime === 'string' ? new Date(b.lastMessageTime).getTime() : new Date(b.updatedAt).getTime()
+      return timeB - timeA
+    })
+  }, [roomsFromAPI, refreshKey])
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!newRoom.name.trim()) {
       return
     }
 
-    const room: Room = {
-      id: uuid(),
-      name: newRoom.name,
-      description: newRoom.description,
-      isPrivate: false,
-      members: 1,
-      maxMembers: 50,
-      createdAt: nowISO(),
-      updatedAt: nowISO(),
-      roomLevel: roomClassification,
-      classification: roomClassification,
-      memberIds: user?.id ? [user.id] : [],
-      ownerId: user?.id || '',
-    }
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      const response = await axios.post(`${API_URL}/rooms`, {
+        name: newRoom.name,
+        description: newRoom.description,
+        roomLevel: roomClassification,
+        classification: roomClassification,
+        isPrivate: false
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    setJSON(ROOMS_KEY, [...allRooms, room])
-    
-    // Log audit event
-    auditHelpers.logRoomCreate(room.name, room.id)
-    
-    setNewRoom({ name: '', description: '' })
-    setRoomClassification('Normal')
-    setShowCreateModal(false)
-    setRefreshKey(prev => prev + 1)
-    setToast({ message: `Room "${room.name}" created successfully`, type: 'success' })
+      const createdRoom = response.data
+      
+      // Log audit event
+      auditHelpers.logRoomCreate(createdRoom.name, createdRoom.id)
+      
+      setNewRoom({ name: '', description: '' })
+      setRoomClassification('Normal')
+      setShowCreateModal(false)
+      setRefreshKey(prev => prev + 1)
+      setToast({ message: `Room "${createdRoom.name}" created successfully`, type: 'success' })
+    } catch (error: any) {
+      console.error('Error creating room:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to create room. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
   const handleRoomClick = (roomId: string, event?: React.MouseEvent) => {
@@ -155,7 +209,7 @@ const Rooms = () => {
     setSelectedRoomMenu(null)
   }
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!selectedRoom) return
     
     const trimmedName = renameValue.trim()
@@ -176,86 +230,90 @@ const Rooms = () => {
       return
     }
 
-    // Update room (optimistic update)
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const updatedRooms = allRooms.map(r => 
-      r.id === selectedRoom.id ? { ...r, name: trimmedName, updatedAt: nowISO() } : r
-    )
-    setJSON(ROOMS_KEY, updatedRooms)
-    
-    // Update selectedRoom if it's still open
-    if (selectedRoom) {
-      setSelectedRoom({ ...selectedRoom, name: trimmedName, updatedAt: nowISO() })
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      await axios.put(`${API_URL}/rooms/${selectedRoom.id}`, {
+        name: trimmedName
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setShowRenameModal(false)
+      setSelectedRoom(null)
+      setRenameValue('')
+      setRefreshKey(prev => prev + 1)
+      setToast({ message: 'Room renamed', type: 'success' })
+    } catch (error: any) {
+      console.error('Error renaming room:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to rename room. Please try again.', 
+        type: 'error' 
+      })
     }
-    
-    setShowRenameModal(false)
-    setSelectedRoom(null)
-    setRenameValue('')
-    setRefreshKey(prev => prev + 1)
-    setToast({ message: 'Room renamed', type: 'success' })
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedRoom) return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const updatedRooms = allRooms.filter(r => r.id !== selectedRoom.id)
-    setJSON(ROOMS_KEY, updatedRooms)
-    setShowDeleteConfirm(false)
-    setSelectedRoom(null)
-    setRefreshKey(prev => prev + 1)
-    setToast({ message: 'Room deleted successfully', type: 'success' })
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      await axios.delete(`${API_URL}/rooms/${selectedRoom.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setShowDeleteConfirm(false)
+      setSelectedRoom(null)
+      setRefreshKey(prev => prev + 1)
+      setToast({ message: 'Room deleted successfully', type: 'success' })
+    } catch (error: any) {
+      console.error('Error deleting room:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to delete room. Please try again.', 
+        type: 'error' 
+      })
+    }
   }
 
-  const handleAddMember = (userId: string, userName: string) => {
+  const handleAddMember = async (userId: string, userName: string) => {
     if (!selectedRoom) return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const room = allRooms.find(r => r.id === selectedRoom.id)
-    if (!room) return
-
-    const memberIds = room.memberIds || []
-    if (memberIds.includes(userId)) {
-      setToast({ message: 'User is already a member', type: 'warning' })
-      return
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      await axios.post(`${API_URL}/rooms/${selectedRoom.id}/members`, {
+        userId
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setShowAddMemberModal(false)
+      setAddMemberSearchQuery('')
+      setRefreshKey(prev => prev + 1)
+      setToast({ message: `${userName} added to room`, type: 'success' })
+    } catch (error: any) {
+      console.error('Error adding member:', error)
+      const errorMsg = error.response?.data?.error || 'Failed to add member'
+      setToast({ message: errorMsg, type: errorMsg.includes('already') ? 'warning' : 'error' })
     }
-
-    const updatedRoom = {
-      ...room,
-      memberIds: [...memberIds, userId],
-      members: memberIds.length + 1,
-      updatedAt: nowISO()
-    }
-
-    const updatedRooms = allRooms.map(r => r.id === selectedRoom.id ? updatedRoom : r)
-    setJSON(ROOMS_KEY, updatedRooms)
-    setShowAddMemberModal(false)
-    setAddMemberSearchQuery('')
-    setSelectedRoom(updatedRoom)
-    setRefreshKey(prev => prev + 1)
-    setToast({ message: `${userName} added to room`, type: 'success' })
   }
 
-  const handleRemoveMember = (userId: string, userName: string) => {
+  const handleRemoveMember = async (userId: string, userName: string) => {
     if (!selectedRoom || role !== 'admin') return
 
-    const allRooms = getJSON<Room[]>(ROOMS_KEY, []) || []
-    const room = allRooms.find(r => r.id === selectedRoom.id)
-    if (!room) return
-
-    const memberIds = (room.memberIds || []).filter(id => id !== userId)
-    const updatedRoom = {
-      ...room,
-      memberIds,
-      members: Math.max(1, memberIds.length),
-      updatedAt: nowISO()
+    try {
+      const token = getToken() || 'mock-token-for-testing'
+      await axios.delete(`${API_URL}/rooms/${selectedRoom.id}/members/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      
+      setRefreshKey(prev => prev + 1)
+      setToast({ message: `${userName} removed from room`, type: 'success' })
+    } catch (error: any) {
+      console.error('Error removing member:', error)
+      setToast({ 
+        message: error.response?.data?.error || 'Failed to remove member. Please try again.', 
+        type: 'error' 
+      })
     }
-
-    const updatedRooms = allRooms.map(r => r.id === selectedRoom.id ? updatedRoom : r)
-    setJSON(ROOMS_KEY, updatedRooms)
-    setSelectedRoom(updatedRoom)
-    setRefreshKey(prev => prev + 1)
-    setToast({ message: `${userName} removed from room`, type: 'success' })
   }
 
   // Get room members
